@@ -37,7 +37,12 @@ from story_engine.observability.logging import configure_logging
 from story_engine.ports.llm import LLMPort
 from story_engine.resources.dexter_demo import CAST, FORK_ID
 from story_engine.services.canon_ingest import CanonIngestService
-from story_engine.services.demo_seed import DEFAULT_NOVEL, demo_branches, seed_canon
+from story_engine.services.demo_seed import (
+    DEFAULT_NOVEL,
+    DemoSeedError,
+    demo_branches,
+    seed_canon,
+)
 from story_engine.services.episode_generator import EpisodeGenerator
 from story_engine.services.intent_router import IntentRouter
 from story_engine.services.playthrough import PlaythroughService
@@ -146,7 +151,13 @@ def _seed_demo_fork_if_empty(store: SqliteCanonStore, engine: Engine) -> None:
 
     try:
         seed_canon(store, PdfDocumentSource(), DEFAULT_NOVEL)
-    except DocumentIngestionError:
+    except (DemoSeedError, DocumentIngestionError):
+        # `seed_canon` itself raises `DemoSeedError` (a missing chapter, an anchor whose offsets
+        # have drifted, or a slice that no longer contains its `must_contain` sentinel — see
+        # services/demo_seed.py); `DocumentIngestionError` is what `PdfDocumentSource.read_chapters`
+        # raises before `seed_canon` gets a chance to. Both are reachable from this call and
+        # neither is a subclass of the other (both are siblings under `StoryEngineError`), so both
+        # are named here explicitly rather than caught via a shared, broader ancestor.
         logger.exception(
             "demo fork %r could not be seeded: the novel at %s failed to ingest",
             FORK_ID,

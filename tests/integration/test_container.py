@@ -12,10 +12,12 @@ from pathlib import Path
 
 import pytest
 
+from story_engine import bootstrap as bootstrap_module
 from story_engine.bootstrap import build_container
 from story_engine.config.settings import Settings
 from story_engine.domain.models.play import Playthrough, Turn
 from story_engine.resources.dexter_demo import CAST, FORK_ID
+from story_engine.services.demo_seed import DemoSeedError
 
 pytestmark = pytest.mark.integration
 
@@ -52,3 +54,39 @@ def test_container_playthrough_begins_a_run_and_renders_a_turn(tmp_path: Path) -
     assert len(run.turns) == 1
     assert isinstance(run.turns[0], Turn)
     assert run.turns[0].protagonist == protagonist
+
+
+def test_build_container_degrades_rather_than_crashing_when_the_demo_seed_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression test for the bug fixed in the Task 3 review round.
+
+    `bootstrap._seed_demo_fork_if_empty` originally caught `DocumentIngestionError` around the
+    call to `seed_canon`, but `seed_canon` actually raises `DemoSeedError` — a SIBLING of
+    `DocumentIngestionError` under `StoryEngineError`, not a subclass of it — so that `except`
+    never fired for the failure it was written to catch. A drifted anchor offset (a realistic,
+    anticipated failure — the novel text or its chunking changes between sessions) therefore
+    propagated uncaught straight out of `build_container()`, crashing app boot, and made
+    `story-engine reconcile` (which itself calls `build_container()`) unreachable in exactly the
+    situation it exists to repair.
+
+    This forces that exact failure via monkeypatch and asserts `build_container` still returns a
+    usable container instead of raising. Without the fix (reverting the `except` clause to name
+    only `DocumentIngestionError`), this test fails with an uncaught `DemoSeedError`.
+    """
+
+    def _raise_demo_seed_error(*_args: object, **_kwargs: object) -> tuple[object, ...]:
+        raise DemoSeedError("simulated anchor drift: offsets no longer resolve")
+
+    monkeypatch.setattr(bootstrap_module, "seed_canon", _raise_demo_seed_error)
+    settings = Settings(
+        database_url=f"sqlite:///{tmp_path / 'seed_failure.db'}",
+        llm_provider="scripted",
+    )
+
+    container = build_container(settings)  # must not raise
+
+    assert container.llm is not None
+    assert container.playthrough is not None
+    # The failed seed left the fork's canon empty — that is the honest, reported degradation.
+    assert container.canon_store.all_facts(FORK_ID) == ()
