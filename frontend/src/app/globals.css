@@ -1,0 +1,252 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ═══════════════════════════════════════════════════════════════════
+   CANON DESIGN TOKENS — the single source of truth.
+   Values are literal, copied from docs/DESIGN.md §2/§3/§4/§7.
+   Do not invent new colors, radii, shadows, or motion values.
+   ═══════════════════════════════════════════════════════════════════ */
+@theme {
+  /* — SHELL (the machine) — */
+  --color-shell-void: #0a0908;
+  --color-shell-base: #12100e;
+  --color-shell-raised: #1a1714;
+  --color-shell-sunken: #060505;
+
+  /* — PAPER (the story) — */
+  --color-paper-warm: #f4efe6;
+  --color-paper-aged: #e8e0d2;
+  --color-paper-ink: #1a1714;
+  --color-paper-ink-soft: #554e45;
+
+  /* — INK (text on shell) — */
+  --color-ink-bright: #f0ebe3;
+  --color-ink-muted: #8a8178;
+  --color-ink-faint: #4a443d;
+  --color-ink-line: #2a2622;
+
+  /* — ACCENT (single brand accent, used sparingly) — */
+  --color-accent: #c8553d;
+  --color-accent-dim: #8f3e2c;
+  /* Subtle fill behind an active item. */
+  --color-accent-wash: rgb(200 85 61 / 0.08);
+
+  /* — SEMANTIC: RESERVED.
+       ONLY legal on Ripple Map nodes/counters and the Verifier Badge.
+       Never decorative. See DESIGN.md §2 hard rule. — */
+  --color-state-invalid: #d1495b;
+  --color-state-hold: #6a994e;
+  --color-state-new: #4a7b9d;
+
+  /* — TYPOGRAPHY — three fonts, three jobs, zero overlap.
+       Devanagari fallbacks are required: Fraunces/Geist/JetBrains Mono
+       have no Devanagari coverage and the seed story is Hindi-first. — */
+  --font-story: var(--font-fraunces), var(--font-tiro-devanagari), Georgia, serif;
+  --font-ui: var(--font-geist), var(--font-noto-devanagari), system-ui, sans-serif;
+  --font-data: var(--font-jetbrains), var(--font-noto-devanagari), monospace;
+
+  /* — MOTION (DESIGN.md §7) — */
+  --ease-canon: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-flip: cubic-bezier(0.87, 0, 0.13, 1);
+
+  /* — ELEVATION — exactly one shadow exists in this codebase.
+       Legal only on the paper panel (DESIGN.md §6.8). — */
+  --shadow-lift: 0 8px 32px rgb(0 0 0 / 0.45);
+}
+
+/* ── shadcn primitive bridge ────────────────────────────────────────
+   shadcn's components read --background/--foreground/--primary/etc.
+   We repoint those at CANON values so the vendored primitives inherit
+   the design system instead of fighting it. Keep this block in sync if
+   `shadcn add` introduces new semantic vars.
+   ------------------------------------------------------------------- */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-ui);
+  --font-mono: var(--font-data);
+  --font-heading: var(--font-story);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  --background: #0a0908;
+  --foreground: #f0ebe3;
+  --card: #12100e;
+  --card-foreground: #f0ebe3;
+  --popover: #12100e;
+  --popover-foreground: #f0ebe3;
+  --primary: #c8553d;
+  --primary-foreground: #0a0908;
+  --secondary: #1a1714;
+  --secondary-foreground: #f0ebe3;
+  --muted: #1a1714;
+  --muted-foreground: #8a8178;
+  --accent-foreground: #f0ebe3;
+  --destructive: #d1495b;
+  --border: #2a2622;
+  --input: #2a2622;
+  --ring: #c8553d;
+
+  /* RADIUS DISCIPLINE (DESIGN.md §4): this product is not "rounded".
+     Pinning the shadcn radius scale to 2px structurally neutralises any
+     `rounded-lg/xl/2xl` inside vendored components/ui/* files. */
+  --radius: 2px;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    background-color: var(--color-shell-void);
+    color: var(--color-ink-bright);
+    font-family: var(--font-ui);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* The grain overlay — DESIGN.md §4, verbatim.
+     This is what makes dark surfaces read as material, not flat CSS. */
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 9999;
+    opacity: 0.035;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  ::selection {
+    background-color: var(--color-accent);
+    color: var(--color-shell-void);
+  }
+}
+
+/* ── TYPE SCALE (DESIGN.md §3) ──────────────────────────────────────
+   Exact steps only. Never interpolate a new one.
+   ------------------------------------------------------------------- */
+@layer components {
+  .type-display {
+    font-family: var(--font-story);
+    font-size: clamp(2.5rem, 5vw, 4rem);
+    line-height: 1.05;
+    letter-spacing: -0.03em;
+    font-weight: 600;
+  }
+
+  .type-title {
+    font-family: var(--font-story);
+    font-size: 1.75rem;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+    font-weight: 600;
+  }
+
+  .type-prose {
+    font-family: var(--font-story);
+    font-size: 1.125rem;
+    line-height: 1.75;
+    letter-spacing: 0;
+  }
+
+  .type-body {
+    font-family: var(--font-ui);
+    font-size: 0.9375rem;
+    line-height: 1.6;
+    letter-spacing: 0;
+  }
+
+  .type-label {
+    font-family: var(--font-ui);
+    font-size: 0.75rem;
+    line-height: 1.4;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+
+  .type-index {
+    font-family: var(--font-data);
+    font-size: 0.6875rem;
+    line-height: 1;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .type-metric {
+    font-family: var(--font-data);
+    font-size: 2.75rem;
+    line-height: 1;
+    letter-spacing: -0.02em;
+  }
+
+  .type-cite {
+    font-family: var(--font-data);
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    letter-spacing: 0;
+  }
+}
+
+/* ── PRESENTER MODE (DESIGN.md §8) ──────────────────────────────────
+   Hides chrome, drops the max-width constraint, scales type 1.125x,
+   and disables every hover state. Nothing else changes.
+   ------------------------------------------------------------------- */
+/* Ambient timeline breathing — DESIGN.md §6.4.
+   Low amplitude on purpose: it signals "the system is tracking state" without
+   competing with the two assertive moments (FLIP, cascade). */
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 0.85;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@layer utilities {
+  .animate-breathe {
+    animation: breathe 4s ease-in-out infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .animate-breathe {
+      animation: none;
+    }
+  }
+
+  .presenting {
+    font-size: 1.125rem;
+  }
+
+  .presenting *:hover {
+    /* no dead-air hover flicker on a projector */
+    transition: none !important;
+  }
+}
