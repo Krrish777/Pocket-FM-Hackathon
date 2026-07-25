@@ -34,7 +34,11 @@ from story_engine.domain.models.play import ChoiceOption, Citation, Playthrough,
 from story_engine.domain.reactions import CharacterDirective, derive_directives
 from story_engine.resources.dexter_demo import CAST, FORK_ID
 from story_engine.services.playthrough import PlaythroughError
-from story_engine.shared.errors import NoIntentMatchError, PlaythroughNotFoundError
+from story_engine.shared.errors import (
+    NoIntentMatchError,
+    PlaythroughNotFoundError,
+    RunCompleteError,
+)
 
 router = APIRouter(tags=["play"])
 
@@ -84,9 +88,19 @@ def act(run_id: str, body: ActRequest, container: ContainerDep) -> ActResponse:
     When `IntentRouter.resolve` finds no confident match, the turn is **not** advanced: the run is
     left exactly as it was, and the response is a 422 carrying the offered option labels so a UI
     can re-prompt the player.
+
+    An empty `current.choices` means the run has already reached the end of its branches — that
+    case is checked BEFORE routing to `IntentRouter.resolve`, whose own empty-options path would
+    otherwise raise `NoIntentMatchError` and read to the client as an unmatched action rather than
+    as the natural end of a playthrough.
     """
     run = _load_run(container, run_id)
     current = run.turns[-1]
+
+    if not current.choices:
+        raise RunCompleteError(
+            "this run has reached the end of its branches; there is nothing left to act on"
+        )
 
     resolved = container.intent_router.resolve(
         action=body.action, options=current.choices, protagonist=run.protagonist

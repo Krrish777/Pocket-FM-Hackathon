@@ -67,6 +67,19 @@ class NoIntentMatchError(DomainError):
         self.options = options
 
 
+class RunCompleteError(DomainError):
+    """The current turn offers no choices: the run has reached the end of its branches.
+
+    Distinct from `NoIntentMatchError` — that one means the player's words didn't match any
+    *offered* option; this one means there is nothing on offer at all, because the branch tree
+    ended. `api/routers/play.py`'s `act` must check for this before ever calling
+    `IntentRouter.resolve`, or an ended run's `/act` reads as an unmatched action rather than as
+    the natural end of a playthrough.
+    """
+
+    code = "run_complete"
+
+
 # --- generation / infrastructure -------------------------------------------------------------
 class GenerationError(StoryEngineError):
     """An LLM generation failed or produced unusable output."""

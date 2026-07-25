@@ -14,6 +14,7 @@ from story_engine.shared.errors import (
     NoIntentMatchError,
     PlaythroughNotFoundError,
     PromptError,
+    RunCompleteError,
     StoryEngineError,
     StoryNotFoundError,
 )
@@ -31,6 +32,11 @@ _STATUS: dict[type[StoryEngineError], int] = {
     UnknownChoiceError: 422,
     PlaythroughError: 422,
     NoIntentMatchError: 422,
+    # 409, not 422: the request is well-formed and the action string may well be a fine parse —
+    # what's gone is the resource the client is asking to act on (an offered choice to route
+    # onto). That is a conflict between the request and the run's current state, not malformed
+    # input, so 409 fits better than the 422 used for a genuine no-match.
+    RunCompleteError: 409,
 }
 
 

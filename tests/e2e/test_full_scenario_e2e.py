@@ -197,7 +197,9 @@ def test_full_demo_scenario_walks_every_beat(tmp_path: Path) -> None:
     run = service.advance(run, choice1)
     container.playthrough_repository.save(run_id, run)
 
-    # --- 7/8: canon grew, the graph rebuilt -------------------------------------------------
+    # --- 7/8: canon grew; the graph is rebuilt fresh from canon on every call, never a stale
+    # cache — this is what step 8 verifies, NOT that an edge exists (edge projection is
+    # unexercised on this fork; see the note below) --------------------------------------------
     turn1_fact_id = "canon:t1:t1:hunt:fact"
     assert container.canon_store.get(turn1_fact_id) is not None, "canon must have grown"
     assert _knowers(container, turn1_fact_id) == {"dexter"}, (

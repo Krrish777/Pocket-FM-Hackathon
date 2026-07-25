@@ -144,7 +144,7 @@ def test_options_at_returns_a_mined_option_with_a_real_source_work_id(
     assert len(canon) == 1
     # The mined label is synthesized from the taxonomy, never copied from the work's blurb.
     assert mined[0].label not in (
-        "A newcomer arrives in Miami and becomes close to Dexter."
+        "A newcomer arrives in Miami and becomes close to Dexter.",
     )
 
 

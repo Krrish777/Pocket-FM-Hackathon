@@ -25,7 +25,8 @@ import { cn } from "@/lib/utils";
 type LastAction =
   | { kind: "none" }
   | { kind: "interpreted"; interpretedAs: string; reactions: ReactionDTO[] }
-  | { kind: "no_match"; message: string; options: string[] };
+  | { kind: "no_match"; message: string; options: string[] }
+  | { kind: "run_complete"; message: string };
 
 type ReplayState =
   | { kind: "idle" }
@@ -61,7 +62,7 @@ export default function PlayPage() {
   const [selectError, setSelectError] = useState<string | null>(null);
   const [lastAction, setLastAction] = useState<LastAction>({ kind: "none" });
 
-  // ── Free-text action ──────────────────────────────────────────────────
+  // ── Natural-language action ──────────────────────────────────────────────
   const [actionText, setActionText] = useState("");
   const [actionPending, setActionPending] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -116,6 +117,9 @@ export default function PlayPage() {
             )
           : [];
         setLastAction({ kind: "no_match", message: err.message, options });
+        setActionError(null);
+      } else if (err instanceof PlayApiError && err.code === "run_complete") {
+        setLastAction({ kind: "run_complete", message: err.message });
         setActionError(null);
       } else {
         setActionError(describeError(err));
@@ -195,6 +199,10 @@ export default function PlayPage() {
                 options={lastAction.options}
                 onPick={(label) => setActionText(label)}
               />
+            ) : null}
+
+            {lastAction.kind === "run_complete" ? (
+              <RunCompletePanel message={lastAction.message} />
             ) : null}
 
             <ActionInput
@@ -296,6 +304,24 @@ function TurnView({ turn }: { turn: TurnDTO }) {
 
       <p className="type-prose text-ink-bright whitespace-pre-line text-lg">{turn.scene}</p>
 
+      {turn.choices.length > 0 ? (
+        <div className="border-ink-line mt-6 border-t pt-4">
+          <p className="type-label text-ink-muted mb-2">you could:</p>
+          <ul className="flex flex-col gap-1">
+            {turn.choices.map((choice) => (
+              <li key={choice.id} className="type-body text-ink-bright">
+                {choice.label}
+                {choice.source_work_id !== null ? (
+                  <span className="type-index text-ink-faint ml-2 normal-case">
+                    from fan fiction {choice.source_work_id}
+                  </span>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
       <div className="border-ink-line mt-6 border-t pt-4">
         <p className="type-label text-ink-muted mb-2">
           {turn.citations.length} fact{turn.citations.length === 1 ? "" : "s"} cited ·{" "}
@@ -391,6 +417,17 @@ function NoMatchPanel({
           </div>
         </>
       ) : null}
+    </section>
+  );
+}
+
+function RunCompletePanel({ message }: { message: string }) {
+  return (
+    <section className="border-ink-line bg-shell-raised/30 rounded-2xl border p-6">
+      <p className="type-body text-ink-bright">
+        This run has reached the end of its branches.
+      </p>
+      <p className="type-index text-ink-muted mt-1 normal-case">{message}</p>
     </section>
   );
 }

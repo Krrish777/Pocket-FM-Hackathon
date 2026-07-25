@@ -299,6 +299,34 @@ def test_both_act_422_causes_share_one_error_envelope_shape(
 
 
 @pytest.mark.e2e
+def test_act_on_a_run_with_no_choices_returns_409_run_complete(
+    app_client: TestClient,
+) -> None:
+    """A turn with no offered choices means the run has ended, not that nothing matched.
+
+    Distinct from `no_intent_match` (422): here there is nothing on offer at all, so `/act` must
+    short-circuit before ever reaching `IntentRouter.resolve` and report a `run_complete` conflict
+    instead of a parse failure."""
+    play_resp = app_client.post("/api/v1/play", json={"character_id": "dexter"})
+    run_id = play_resp.json()["run_id"]
+
+    container: Container = app_client.app.state.container  # type: ignore[attr-defined]
+    run = container.playthrough_repository.get(run_id)
+    assert run is not None
+    ended_turn = run.turns[-1].model_copy(update={"choices": ()})
+    ended_run = run.model_copy(update={"turns": (*run.turns[:-1], ended_turn)})
+    container.playthrough_repository.save(run_id, ended_run)
+
+    act_resp = app_client.post(
+        f"/api/v1/play/{run_id}/act", json={"action": "keep going"}
+    )
+
+    assert act_resp.status_code == 409
+    error = act_resp.json()["error"]
+    assert error["code"] == "run_complete"
+
+
+@pytest.mark.e2e
 def test_unknown_run_id_returns_404(app_client: TestClient) -> None:
     """`PlaythroughNotFoundError` must map to 404 — an exact-type entry in `api/errors.py`'s
     `_STATUS` table, not an inherited one (the table does a literal `type(exc)` lookup)."""
