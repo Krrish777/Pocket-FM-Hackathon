@@ -76,3 +76,27 @@ class DocumentIngestionError(HarvestError):
     """
 
     code = "document_ingestion_failed"
+
+
+# --- canon <-> vector ingest -------------------------------------------------------------------
+class IngestDriftError(StoryEngineError):
+    """Canon and the vector index disagree: one or more facts have no vector entry.
+
+    Raised by `CanonIngestService.ingest` only after every fact in the batch was attempted —
+    never mid-batch. Canon is the source of truth and a missing vector entry is a repairable
+    degradation (semantic recall under-returns; the guard, the graph and every correctness
+    property still hold) — never a reason to compensate by deleting the canon row. Repair with
+    `CanonIngestService.reconcile`.
+    """
+
+    code = "ingest_drift"
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        orphan_fact_ids: tuple[str, ...],
+        context: dict[str, object] | None = None,
+    ) -> None:
+        super().__init__(message, context=context)
+        self.orphan_fact_ids = orphan_fact_ids

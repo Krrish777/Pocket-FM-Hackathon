@@ -153,3 +153,16 @@ class SqliteVectorStore:
                 VectorHit(fact_id=row.fact_id, text=row.text, score=score)
                 for row, score in scored[:k]
             )
+
+    def ids(self, fork_id: str) -> frozenset[str]:
+        """Return every fact id indexed for `fork_id`, guard NOT applied.
+
+        Unfiltered by design: this backs `CanonIngestService.reconcile`, which must find a
+        fact that no knower may currently see just as reliably as one that is public, or a
+        withheld secret's vector row could silently drift out of reconciliation's view.
+        """
+        with session_scope(self._engine) as session:
+            statement = select(VectorRow.fact_id).where(
+                col(VectorRow.fork_id) == fork_id
+            )
+            return frozenset(session.exec(statement).all())

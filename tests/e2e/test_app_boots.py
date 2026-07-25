@@ -4,8 +4,10 @@ Exercises the real composition root through an ASGI client: the container builds
 is created at startup, the app serves OpenAPI, and the versioned route is mounted. This is the
 system-level termination check — proof the pieces work together, not just in isolation.
 
-Note: a full premise->episode->persist request path is NOT yet E2E-testable (the LLM adapter is
-deferred to the event brief; `StubLLM` raises by design). That gap is tracked in PROGRESS.md.
+Note: a full premise->episode->persist request path is NOT yet E2E-testable against a real model.
+`llm_provider="scripted"` is used here (as it is throughout the test suite) specifically so this
+test needs no `OPENAI_API_KEY` and touches no network — see
+`tests/unit/adapters/test_llm_factory.py` for the provider switch itself.
 """
 
 from pathlib import Path
@@ -22,7 +24,9 @@ from story_engine.config.settings import Settings
 @pytest.fixture
 def booted(tmp_path: Path) -> tuple[TestClient, Settings, Container]:
     """Build the full app against a fresh tmp SQLite DB (explicit init arg beats any .env)."""
-    settings = Settings(database_url=f"sqlite:///{tmp_path / 'e2e.db'}")
+    settings = Settings(
+        database_url=f"sqlite:///{tmp_path / 'e2e.db'}", llm_provider="scripted"
+    )
     container = build_container(settings)
     return TestClient(create_app(container)), settings, container
 

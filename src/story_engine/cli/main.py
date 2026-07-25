@@ -22,7 +22,7 @@ from story_engine.adapters.outbound.wiki.jsonl_index_sink import (
     DEFAULT_INDEX_ROOT,
     JsonlWikiIndexSink,
 )
-from story_engine.bootstrap import build_container
+from story_engine.bootstrap import build_canon_ingest_service, build_container
 from story_engine.cli.play import register as register_play
 from story_engine.domain.models.wiki_index import WikiEntityKind
 from story_engine.ports.fanfic_source import FanficSourcePort
@@ -297,6 +297,29 @@ def wiki_index(
     typer.echo(f"Attributes         : {report.attributes}")
     typer.echo(f"Unresolved targets : {report.unresolved_targets}")
     typer.echo(f"Written to         : {report.sink_location or '(nothing kept)'}")
+
+
+@app.command()
+def reconcile(
+    fork: str = typer.Option(
+        "canon",
+        "--fork",
+        help="Fork whose canon facts to reconcile against the vector lane.",
+    ),
+) -> None:
+    """Re-index canon facts missing from the vector lane — the drift repair path.
+
+    Safe to run any time, including on a fully healthy store: `CanonIngestService.reconcile`
+    is a no-op when nothing is missing.
+    """
+    _configure_logging()
+    container = build_container()
+    ingest = build_canon_ingest_service(container)
+    repaired, still_missing = ingest.reconcile(fork)
+    typer.echo(f"Repaired  : {repaired}")
+    typer.echo(f"Missing   : {still_missing}")
+    if still_missing:
+        raise typer.Exit(code=1)
 
 
 register_play(app)

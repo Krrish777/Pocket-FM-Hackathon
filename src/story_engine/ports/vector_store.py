@@ -65,3 +65,13 @@ class VectorStorePort(Protocol):
             ValueError: `k` is less than 1.
         """
         ...
+
+    def ids(self, fork_id: str) -> frozenset[str]:
+        """Return every fact id currently indexed for `fork_id`, guard NOT applied.
+
+        This is the repair-path seam, not a retrieval one: `CanonIngestService.reconcile`
+        needs to know what is indexed regardless of who may currently see it, so a fact
+        withheld from every knower must still be reported as present. Callers other than
+        reconciliation should route through `search`, which enforces the spoiler guard.
+        """
+        ...

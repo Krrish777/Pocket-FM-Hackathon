@@ -4,7 +4,17 @@
 exception handlers, and mounts the versioned router aggregate under `settings.api_v1_str`.
 ASGI target: `story_engine.api.app:app` (e.g. `uv run uvicorn story_engine.api.app:app`).
 Patterns (custom operation-ids, CORS, router aggregation) adapted from the tiangolo template.
+
+The module-level `app` is built LAZILY, via `__getattr__` (PEP 562), rather than eagerly at import
+time. `build_container` now wires a real `LLMPort` (`llm_factory.build_llm`), which fails fast at
+construction when `llm_provider="openai"` and no key is configured — exactly the intended
+fail-at-boot behaviour for a real deployment, but it must not fire merely because something
+imported this module (this test suite does, via `create_app`, using its own tmp-DB/scripted
+container). Only an actual attribute access of `app` — which is what an ASGI server does — builds
+the default container from process settings.
 """
+
+from typing import Any
 
 from fastapi import FastAPI
 from fastapi.routing import APIRoute
@@ -45,4 +55,8 @@ def create_app(container: Container | None = None) -> FastAPI:
     return app
 
 
-app = create_app()
+def __getattr__(name: str) -> Any:
+    """Lazily build the default ASGI `app` on first access — see the module docstring."""
+    if name == "app":
+        return create_app()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
