@@ -1,12 +1,29 @@
 """SQLite-backed playthrough repository — implements `PlaythroughRepositoryPort`.
 
 Persists the run envelope so `POST /play` and `POST /play/{id}/act` — two separate HTTP requests,
-possibly two separate processes — can share one run. **This is NOT a second source of truth.**
-Canon facts already live in the canon store (`ports.canon_store`) behind
-`story_engine.domain.models.canon.is_visible`; a `Playthrough` here is a replayable *view* of a run
-over that store, serialized whole via `Playthrough.model_dump_json()` / `.model_validate_json()`.
-Nothing about a fact is duplicated into this table — only the rendered turns the player has already
-been shown.
+possibly two separate processes — can share one run.
+
+**What this stores, precisely:** the rendered turns already shown to this protagonist (each
+`Turn`'s scene, citations and `withheld_count`) plus the live choice set `PlaythroughService.advance`
+needs to resolve the player's next action (`_find_choice` looks a `ChoiceOption` up by id and applies
+its `Consequence`) — so `Consequence` and `Citation.quote` are deliberately part of the payload, not
+stripped from it. Without them, no choice could be applied after a reload, which defeats the entire
+reason this repository exists.
+
+**What this is NOT:** a second source of truth for canon, and NOT a read path for it. Canon facts
+live in the canon store (`ports.canon_store`) and every FRESH read of canon — anything not already
+rendered into a stored turn — goes through `store.visible_to()` / the spoiler guard
+(`story_engine.domain.models.canon.is_visible`), never through this repository. This repository has
+no method that returns a bare `Fact`; the only object it hands back is a `Playthrough`, and a caller
+must never re-serialize a stored `Consequence`/`Citation` outward to an API client — those exist here
+only so the service can apply the next choice, not to be republished.
+
+**Known, deliberate limitation:** a transcript records what was shown to the player *at the time*.
+If a fact underlying an already-rendered turn is later superseded or quarantined in the canon store,
+the stored turn does not change retroactively — it is a historical record of a past render, not a
+live view. Re-deriving already-shown turns from current canon on every read would also silently
+rewrite a transcript the player already saw, which is worse. This is accepted as correct, not as a
+bug to fix later.
 """
 
 from datetime import UTC, datetime
@@ -42,7 +59,9 @@ class SqlitePlaythroughRepository:
             run_id=run_id,
             fork_id=run.fork_id,
             protagonist=run.protagonist,
-            created_at=datetime.now(UTC),
+            # ISO-8601 text preserves tzinfo; a native SQLite DateTime column would not
+            # (see the comment on `PlaythroughRunRow.created_at`).
+            created_at=datetime.now(UTC).isoformat(),
             payload=run.model_dump_json(),
         )
         with session_scope(self._engine) as session:

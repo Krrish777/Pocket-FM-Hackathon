@@ -5,8 +5,6 @@ never imports SQLModel/SQLAlchemy (hexagon red line #7). One table class per agg
 hold the domain's dict/collection fields; the repo converts `tuple ⇄ list` at the boundary.
 """
 
-from datetime import datetime
-
 from sqlalchemy import JSON, Column
 from sqlmodel import Field, SQLModel
 
@@ -103,7 +101,11 @@ class PlaythroughRunRow(SQLModel, table=True):
     run_id: str = Field(primary_key=True)
     fork_id: str = Field(index=True)
     protagonist: str = Field(index=True)
-    created_at: datetime
+    # Stored as ISO-8601 text, not a native DateTime column: SQLite has no timezone type, so
+    # SQLAlchemy's DateTime silently returns a naive datetime on read and drops `tzinfo` — the
+    # same lossy round-trip `FactRow.recorded_at` avoids for the same reason. `datetime.isoformat()`
+    # / `datetime.fromisoformat()` preserve the offset exactly.
+    created_at: str
     payload: str
     """The full `Playthrough`, serialized via `.model_dump_json()`."""
 

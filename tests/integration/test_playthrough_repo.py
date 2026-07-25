@@ -6,6 +6,8 @@ proof closes the engine and reopens a fresh one against the same file — a stor
 while the process is warm would pass every test that skips that step.
 """
 
+import inspect
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -15,6 +17,8 @@ from story_engine.adapters.outbound.persistence import (
     create_db_engine,
     init_db,
 )
+from story_engine.adapters.outbound.persistence.db import session_scope
+from story_engine.adapters.outbound.persistence.tables import PlaythroughRunRow
 from story_engine.domain.models.canon import Presence, PresenceGrade
 from story_engine.domain.models.play import (
     ChoiceOption,
@@ -167,3 +171,58 @@ def test_round_trip_survives_a_close_and_reopen_of_the_engine(tmp_path: Path) ->
     assert reloaded.turns[0].choices[0].consequence.roster == (
         Presence(entity_id="dexter", grade=PresenceGrade.ACTIVE),
     )
+
+
+def test_created_at_round_trips_timezone_aware_after_close_and_reopen(
+    tmp_path: Path,
+) -> None:
+    """Regression test: `created_at` must not silently go naive across a reopen.
+
+    `FactRow.recorded_at` already documents why a native SQLite `DateTime` column is unsafe
+    (SQLAlchemy hands back a naive `datetime` on read, silently dropping `tzinfo`); this asserts
+    `PlaythroughRunRow.created_at` gets the same isoformat-text treatment. Reads the row directly
+    (not through the repository, which does not expose `created_at` on `Playthrough`) so the
+    assertion is against the actual stored representation. Checks `tzinfo` EXPLICITLY — a test that
+    only compares the naive parts of two datetimes passes even with the bug present.
+    """
+    db = tmp_path / "created_at.db"
+    engine = create_db_engine(f"sqlite:///{db}")
+    init_db(engine)
+    run_id = SqlitePlaythroughRepository(engine).create(_three_turn_run())
+    with session_scope(engine) as session:
+        row = session.get(PlaythroughRunRow, run_id)
+        assert row is not None
+        original = datetime.fromisoformat(row.created_at)
+    engine.dispose()  # close every pooled connection — simulate process exit
+
+    reopened = create_db_engine(f"sqlite:///{db}")
+    with session_scope(reopened) as session:
+        row = session.get(PlaythroughRunRow, run_id)
+        assert row is not None
+        reloaded = datetime.fromisoformat(row.created_at)
+
+    assert reloaded.tzinfo is not None
+    assert reloaded == original
+
+
+def test_repository_exposes_no_canon_fact_read_path() -> None:
+    """The boundary, made explicit: this repository has no method that returns canon fact data.
+
+    The only object `SqlitePlaythroughRepository` ever hands back is a `Playthrough` — a transcript
+    of already-rendered turns plus the choice set needed to apply the next one. Every FRESH read of
+    canon (anything not already rendered into a stored turn) must go through the canon store's
+    `visible_to()` / `story_engine.domain.models.canon.is_visible`, never through here. This is a
+    short, documenting check, not machinery: enumerate the public surface and assert none of it
+    mentions `Fact`.
+    """
+    public_methods = {
+        name: member
+        for name, member in vars(SqlitePlaythroughRepository).items()
+        if not name.startswith("_") and callable(member)
+    }
+    assert set(public_methods) == {"create", "get", "save"}
+    for name, method in public_methods.items():
+        return_annotation = inspect.signature(method).return_annotation
+        assert "Fact" not in str(return_annotation), (
+            f"{name} must not return canon Fact data — the canon store is the only fact read path"
+        )
