@@ -82,21 +82,77 @@
       "description": "Uniform character state schema — all 5 cast members share one identical state structure (knowledge set over shared world state + traits + goals); no PC/NPC asymmetry in storage; renderer takes a character as a parameter. See project_context.md §4.4.",
       "verification": "uv run pytest -m unit -k character_state_schema -q",
       "passes": false,
-      "evidence": "NOT STARTED. BUILD THIS FIRST — it is the only decision in the product that is expensive to retrofit, and M5/S3 both depend on it."
+      "evidence": "STORAGE SUBSTRATE BUILT (KB-01, KB-07) — one world state as tri-temporal Fact rows, per-character views via Fact.knower_scope, and WorkingMemory.assemble() takes the character as a PARAMETER (no PC/NPC asymmetry anywhere in storage). Still NOT PASSING: no traits/goals on the character record yet, and the named verification test does not exist. The expensive-to-retrofit part is done."
     },
     {
       "id": "M5",
       "description": "Per-character epistemic memory — one world state, 5 filtered views; a character cannot act on facts they did not witness, were not told, and could not infer. See project_context.md §5.3.",
       "verification": "uv run pytest -m unit -k epistemic -q",
       "passes": false,
-      "evidence": "NOT STARTED. Depends on M8. Acceptance condition per project_context.md §4.2: a character who did not learn a fact at step 4 must still not know it at step N for all N > 4."
+      "evidence": "SUBSTRATE BUILT AND TESTED (KB-04, KB-07, KB-08): store.visible_to(fork, knower, chapter) filters by telling-time AND knower scope; leak suite asserts by SET EQUALITY across cutoffs; graph and working-memory both inherit the guard at construction. GAP TO CLOSE: knower_scope is populated per fact but nothing yet DERIVES it from Scene.witnesses — that propagation step is what makes §4.2's compounding acceptance condition hold across turns. Also note project_context.md §5.3 wants three channels (witnessed/told/inferred); we store one set."
     },
     {
       "id": "M1",
       "description": "Knowledge base extracted from the Dexter novels — facts stored with provenance sufficient to produce a citation",
       "verification": "uv run pytest -m integration -k canon_kb -q",
       "passes": false,
-      "evidence": "NOT STARTED. Ingestion is EXT-1 (parallel session) — see project_context.md §9. Blocked on OD-3 (output contract undefined) and OD-2 (novel vs screen canon)."
+      "evidence": "STORE BUILT AND EMPTY. The KB itself exists and is tested (KB-07): Provenance carries source_id + chapter + char span + verbatim fragment, which is sufficient to render the receipt. What is missing is DATA — ingestion (EXT-1) is unbuilt. Blocked on OD-3 (output contract) and OD-2 (novel vs screen canon). UNBLOCK PATH: seed 20-40 hand-authored facts (~1h) and the agent loop can start against a real store immediately."
+    },
+    {
+      "id": "KB-01",
+      "description": "Canon Kernel domain schema — tri-temporal facts (story/telling/record time), forks, entities, scenes with presence grades, commitments, flags, plus pure invariant predicates",
+      "verification": "uv run pytest tests/unit/domain -q",
+      "passes": true,
+      "evidence": "2026-07-25 (s6): M0 built across 5 TDD tasks, each independently reviewed (spec-compliance + quality), plus a whole-branch review on the most capable model. Then hardened: tz-aware datetimes enforced, record-time ordering validated, revealed_at/AUDIENCE coupling closed."
+    },
+    {
+      "id": "KB-07",
+      "description": "Canon store — CanonStorePort + SQLite adapter with lossless Fact<->Row mapping, tri-temporal as-of queries, and ATOMIC supersession (close old window + insert replacement in one transaction)",
+      "verification": "uv run pytest tests/integration/test_canon_store_sqlite.py -q",
+      "passes": true,
+      "evidence": "2026-07-25 (s6): round-trip asserts full-model equality (not identity), None-vs-empty-frozenset distinction preserved across the JSON boundary, and durability proven by closing the engine and reopening against the same file."
+    },
+    {
+      "id": "KB-09",
+      "description": "Temporal invariants + spoiler-guard leak suite — set-equality assertions across cutoffs, scope leaks, and the severity asymmetry (a leak fails the build; over-withholding is a reported metric)",
+      "verification": "uv run pytest tests/integration/test_canon_invariants.py -q",
+      "passes": true,
+      "evidence": "2026-07-25 (s6): leak assertions use SET EQUALITY, not spot checks — spot checks only catch leaks you already thought of. Parametrized across cutoffs. Caught and fixed a real bug: superseded facts were being hidden at every chapter, including ones inside their own valid window."
+    },
+    {
+      "id": "KB-10",
+      "description": "Graph projection layer — derived adjacency over canon facts with multi-hop traversal, cycle-safe BFS, and relationship diff between two story-time positions",
+      "verification": "uv run pytest tests/unit/domain/test_graph.py -q",
+      "passes": true,
+      "evidence": "2026-07-25 (s6): guard applied at CONSTRUCTION inside from_facts(), not left to callers — an unguarded graph beside a guarded store is a spoiler side-channel, and traversal is exactly how you would reach a withheld fact. No graph database: a service dependency would break the offline constraint."
+    },
+    {
+      "id": "KB-11",
+      "description": "Agent working memory — bounded, deterministic per-character packet (visible facts + its own guarded graph + a withheld count)",
+      "verification": "uv run pytest tests/unit/services/test_working_memory.py -q",
+      "passes": true,
+      "evidence": "2026-07-25 (s6): deterministic assembly (identical inputs -> identical packet), focus entities survive the budget on BOTH fact endpoints, and assembly reads only from store.visible_to() so there is no second filtering path to leak through."
+    },
+    {
+      "id": "KB-12",
+      "description": "Vector store — semantic recall with the spoiler guard applied as a pre-filter, plus a dependency-free deterministic embedder behind an EmbedderPort",
+      "verification": "uv run pytest tests/integration/test_vector_store_sqlite.py -q",
+      "passes": true,
+      "evidence": "2026-07-25 (s6): guard filters BEFORE ranking — a post-filter on top-k silently returns fewer than k and hides the leak in the gap. Offline hashing embedder is the demo-safe default; Databricks Vector Search plugs in as a second adapter behind the same port (Delta Sync + HYBRID search + server-side filters)."
+    },
+    {
+      "id": "KB-08",
+      "description": "End-to-end memory storage — the full hybrid (canon store + graph + working memory) driven against a real on-disk database across TWO restarts, with the guard asserted at every layer",
+      "verification": "uv run pytest tests/e2e/test_memory_storage_e2e.py tests/e2e/test_hybrid_kb_e2e.py -q",
+      "passes": true,
+      "evidence": "2026-07-25 (s6): ingest -> close engine -> reopen -> guard before and after the reveal -> epistemic scope -> supersede -> reopen again. Never :memory:. Bar set deliberately above the reference implementations: Graphiti's own suite round-trips temporal edges then asserts only on uuid, and one of its search tests has no assertions at all."
+    },
+    {
+      "id": "KB-13",
+      "description": "Fork write path + knowledge propagation — create/extend a branch on a player choice, and derive knower_scope from Scene.witnesses so knowledge compounds across turns",
+      "verification": "uv run pytest tests/integration/test_fork_and_propagation.py -q",
+      "passes": false,
+      "evidence": "NOT STARTED. This is the remaining KB work that the agent loop genuinely needs — M5's compounding acceptance condition (§4.2) and M6 both depend on it. OD-1 is now settled as FORK (project_context.md §11), so it is unblocked. Estimated half a day."
     },
     {
       "id": "M4",

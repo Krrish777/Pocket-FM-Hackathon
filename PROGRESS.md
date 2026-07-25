@@ -12,11 +12,21 @@
   actually learned. Track: P1 Story Time Machine + Infinite Story Universe.
 - **Runway:** 24–36h, 2–4 people. Parallel sessions are live in `.claude/worktrees/`
   (`reddit-fanfic-scraper` = the EXT-1 ingestion dependency; `knowledge-base`).
-- **Last commit:** `8d70e1b` "regular updates" — created by a **parallel session** that swept the shared
-  index (164 files, incl. this session's 4 doc files). See Known Issues.
-- **Verification:** `make check` is **GREEN** — exit code 0, **7 passing** (1 unit, 4 integration real-SQLite,
-  2 e2e). INIT-01…05 + HARDEN-01…04 pass. HARDEN-05 deferred (deprioritised below product work).
-  **All product features M1–M8 / S1–S3 are `passes:false` — nothing product-side is built yet.**
+- **Verification:** `make check` is **GREEN — 110 passing** (70 unit, 40 integration + e2e against REAL
+  on-disk SQLite). INIT-01…05 + HARDEN-01…04 pass; HARDEN-05 deferred.
+- **🧠 THE KNOWLEDGE BASE IS BUILT AND END-TO-END TESTED** (branch `worktree-knowledge-base`, rebased onto
+  main 2026-07-25). Three stores over one tri-temporal fact model: **canon store** (SQLite, atomic
+  supersession, as-of queries) · **graph projection** (multi-hop traversal, relationship diff) ·
+  **vector store** (semantic recall, guard applied as a PRE-filter) · plus **agent working memory**
+  (bounded, deterministic, per-character). Spoiler guard asserted at every layer; durability proven by
+  closing and reopening the database twice. `KB-01`, `KB-07`…`KB-12` all `passes:true`, each verification
+  command re-run individually.
+- **What the KB still owes the product:** it is **EMPTY** (no ingestion — that is EXT-1), and `KB-13`
+  (fork write path + deriving `knower_scope` from `Scene.witnesses`) is not started. Those two are the only
+  KB items the agent loop actually needs. **Seeding 20–40 hand-authored facts (~1h) unblocks the loop today**
+  — the API is stable and tested, so an agent built against seeded data works unchanged when ingestion lands.
+- **Product features M1–M8 / S1–S3 remain `passes:false`** — but M5 and M8's *storage substrate* now exists
+  and is tested; see their `evidence` fields for exactly what is done and what is not.
 
 ## Completed
 - [x] **Conventions system** — migrated (session 4) to native **`.claude/rules/`**: 7 path-scoped rules that
