@@ -235,3 +235,108 @@
   as the two existing exclusions.
 - **Rejected:** fixing the violation in the other session's worktree (not our code, and it would recur on every
   edit they make).
+## 2026-07-25 (session 5): Fan-fiction corpus source = Wattpad, NOT Reddit
+- **Reason:** Measured, not assumed. Fandom subreddits are recommendation/discovery indexes, not prose
+  repositories — median selftext **141–620 chars** across r/FanFiction, r/HPfanfiction, r/Dramione,
+  r/PercyJacksonfanfic, and r/FanFiction **Rule 1 bans posting fic text** on the front page (excerpts >2
+  sentences also barred). Cross-sections are near-empty (r/shortstories + "Percy Jackson" = 6 hits;
+  r/redditserials = 0). Reddit-hosted prose is *original* fiction (r/HFY 96% >2k chars), and the prose subs
+  ban fanfiction by rule. So the requested artifact is not obtainable from Reddit.
+- **What IS reachable (probed live):** Wattpad `api/v3/stories` + `apiv2/storytext` return fandom-tagged
+  metadata **and** full chapter prose, keyless — verified 18,227 chars of Witcher fanfic in one call.
+  AO3 (`403` Cloudflare "Shields are up!"), fanfiction.net (`403` JS challenge) and fictionpress are walled.
+  Also reachable for later: SpaceBattles, SufficientVelocity, RoyalRoad, Wattpad.
+- **Rejected:** (a) Reddit as prose source — near-zero yield, and its Data API now requires manual approval
+  under the **Responsible Builder Policy** while barring ML-training use, with active litigation against AI
+  firms; (b) offsite AO3/FFN scraping via headless browser — fragile, slow, the most likely thing to break on
+  stage; (c) pre-built HuggingFace AO3 corpora (`ray0rf1re/AO3-2020`, `midwestern-simulation-active/ao3_random_subset`)
+  — kept as a documented fallback, but the best fandom-labelled one states **no licence**.
+- **Maintainer override recorded:** presented with the evidence that corpus size is scored by **no** hackathon
+  rubric and that judges advise against scraping, the maintainer reaffirmed the scraper as a hard requirement.
+  Built as asked; scope held to *scrape + judge relevance + save* with KB wiring deferred to another branch.
+
+## 2026-07-25 (session 5): Relevance is lexical (alias matching), not semantic
+- **Reason:** Fandom terms are rare proper nouns ("Anaklusmos", "Nilfgaard", "Kaer Morhen"), the regime where
+  exact matching is high-precision and dense embeddings blur the very distinction that carries the signal.
+  Wikipedia `prop=redirects` yields those universe terms free — every redirect a human made is a real alias.
+  Confirmed in the live run: the kept work matched on `['the witcher', 'nilfgaard']`.
+- **Requirement clamped to the available alias surface** (`required_alias_hits`): demanding 2 distinct aliases
+  is unsatisfiable when expansion fails and only the fandom name remains — which silently rejected **20/20**
+  candidates on the first live run. Strict when it can be, permissive when it cannot.
+- **Rejected:** sentence-transformers embeddings (256-token window vs ~13k-char stories; chunk-and-pool is real
+  work for no gain here), LLM-as-classifier for the sweep, BM25 as the include/exclude decision.
+- **Wikimedia UA policy is load-bearing:** a UA without a contactable URL/email returns **403** (a generic
+  browser UA also 403s), which silently disables expansion. Hence `STORY_ENGINE_CONTACT`.
+
+## 2026-07-25 (session 5): Fandom disambiguation must be RESOLVED, not guessed
+- **Reason:** Wikipedia disambiguates films by YEAR — the real articles are `Titanic (1997 film)` and
+  `The Avengers (2012 film)` — so no fixed suffix list can ever reach them. Measured failures with
+  suffix guessing: "Dexter" → `USS Dexter` (a warship), "Titanic" → the ship
+  ("Provisioning of the RMS Titanic"), "The Avengers" → the 1960s British spy series
+  ("Steed and Mrs. Peel"). Fix: a caller-supplied `kind` (movie/novel/series) drives a Wikipedia
+  **search** that resolves the actual article title, with suffixes only as fallback.
+- **Result:** aliases became real in-universe entities — Dexter → `Dexter Morgan`,
+  `The Bay Harbor Butcher`, `Dark passenger`; Titanic → `Caledon Hockley`, `Heart of the Ocean`,
+  `Rose DeWitt Bukater`; Interstellar → `TARS`, `Miller's Planet`, `Gargantua`.
+- **Also:** `kind`-qualified titles are tried BEFORE the bare title. Trying bare first satisfied the
+  early-exit (the ship has plenty of redirects) and silently ignored the hint.
+
+## 2026-07-25 (session 5): Alias matching is tag-key + word-boundary, never raw substring
+- **Reason:** Raw substring matching failed in BOTH directions on live Wattpad data. Too strict:
+  hosts strip spaces, so the tag `dextermorgan` never matched the alias "Dexter Morgan" and
+  unmistakable fanfic ("Dexter: Blood", tagged `bayharborbutcher`) was rejected. Too loose: "dexter"
+  matched inside `dextercharming`, an *Ever After High* character, admitting the wrong fandom.
+- **Fix:** tags compared as normalized alphanumeric keys (with a leading-article variant, so
+  `bayharborbutcher` satisfies "The Bay Harbor Butcher"); title/description matched on `\b` word
+  boundaries with `\W*` between words.
+- **Plus an explicit-declaration rule:** a work titled "…: A Dexter Fanfiction" or tagged
+  `dexterfanfiction` declares its fandom outright — stronger evidence than a second incidental
+  alias, and the count rule alone was rejecting three obvious true positives. Adjacency is required
+  so "Dexter ▷ Scott Summers" (an X-Men work) is still rejected.
+- **Corpus-quality gates added after reviewing real output:** mature works excluded by default
+  (a Titanic result's blurb was explicit); read/vote floors (a 54-read, 0-vote joke fic —
+  "FOR THE LOVE OF ONIONS. PICK SOMETHING!!!" — passed every other gate); and sentence-level
+  disclaimer stripping, because "I DO NOT OWN TITANIC!" shared a line with prose and the
+  line-anchored rule missed it. Verified 0 disclaimer leaks corpus-wide afterwards.
+
+## 2026-07-25 (session 5b): The deliverable is BRANCH STRUCTURE, not prose volume
+- **Reason:** `project_context.md` section 5.2 (the SSOT) defines the Branch Oracle: "fan-fiction supplies
+  *what the options are*. It is **not quoted, reproduced, or used as generated prose. It is a source of branch
+  structure only.**" That inverts the earlier optimization target. A 918-word abandoned fic ("Dexter doesn't
+  kill Brian") carries as much branch signal as a 35-chapter saga, so "the stories are too small to ingest"
+  stopped being a defect once the unit of value moved from prose to divergence.
+- **Shape:** each work gets a `PremiseSignature` with `decision_point` (canon-side) plus `alternate_path`
+  (what this work did instead); works sharing a decision point form a `PremiseGroup`; `branch_points()`
+  assembles one node per decision point whose `options` are a canon baseline plus every distinct alternate.
+  Live proof: Titanic `character_survives:jack` -> 4 options from 3 independent authors.
+- **Enforcement, not intention:** option labels are synthesized from the premise taxonomy, and a unit test
+  asserts no option label appears in its source blurb. Verbatim snippets live only in `premise.evidence` as
+  audit provenance for the section 5.4 citation requirement.
+- **Grouping is precedence, not union** - "If Jack lived, years later" must group with the other Jack-lived
+  branches rather than key on the time skip, and survival keys on ONE entity so "Jack and Rose, two of the few
+  survivors" does not split from "If Jack lived". Union-keying shatters the one group that proves the concept.
+- **Rejected:** tuning prose-score weights to force a preferred ranking on a 4-work corpus (overfitting);
+  copying author phrasing into option labels (violates section 5.2).
+
+## 2026-07-25 (session 5b): OD-2 is decidable - the wiki carries a machine-readable novel/screen split
+- **Reason:** section 6.4 flags "two canons that diverge" as "a silent corruption path". Measured:
+  `dexter.fandom.com` keeps novel and screen versions as **separate pages** (`Brian Moser` vs
+  `Brian Moser (Novels)`), plus `Category:Characters (Novels)` (74 members) and the wiki's own crosswalk
+  `Category:Characters with Television Counterparts`. Over 314 entities:
+  **novel 68 / screen 223 / both 9 / unknown 14.**
+- **Consequence for the build:** three of the five section 6.3 cast members have DIFFERENT novel names -
+  **Debra -> Deborah Morgan, Doakes -> Albert Doakes, LaGuerta -> Migdia LaGuerta** - and Brian's moniker is
+  `Ice Truck Killer` (screen) vs `Tamiami Butcher/Slasher` (novel). Section 6.3's warning not to encode
+  character facts from memory was correct. Our best Dexter branch (*Set Free*, the killing-table premise) is
+  therefore **screen-canon**, so under section 6.1 it references a scene the novels may not have.
+- **Deliberately NOT a canon KB:** values are emitted as `attributes` ("observed on page X") with mandatory
+  provenance, never as canon assertions; the manifest says `artifact_kind: "wiki_entity_vocabulary"`.
+  `canon_basis: screen` is a **review flag, not a verdict** - absence of a novel page is not absence from the
+  novels. 14 entities stayed `unknown` rather than being defaulted.
+- **Collision avoided:** the parallel `worktree-knowledge-base` branch already owns
+  `domain/models/canon.py` (`CanonEntity`/`Presence`/`Scene`/`Commitment`/`Flag`, 29 tests) plus 11 new enums.
+  Our work was re-pathed to `domain/models/wiki_index.py` + `adapters/outbound/wiki/`, imports none of their
+  unmerged types, and integrates through a **JSON artifact** whose field names map onto `CanonEntity`.
+- **Rejected:** `action=parse` HTML (infobox label/value pairing depends on skin CSS, whereas wikitext gives
+  named parameters that parse straight into typed relationships); emitting the wiki as the authoritative canon
+  KB (section 6.1 says the KB comes from the novels - doing that would BE the corruption path).

@@ -77,6 +77,28 @@
   OpenAI key; single client wrapper logs model id/params/tokens/cost.
 - Set up the `prompts/` registry (first template `name/v1.jinja`).
 
+## Fan-fiction corpus (in progress, branch `worktree-reddit-fanfic-scraper`)
+- [x] **FANFIC-01** scraper: novel/film in → relevant fan-fiction prose out, saved as KB-ready JSONL. DONE.
+- [x] **FANFIC-02** live harvest produces a real non-empty corpus. DONE (The Witcher, 4,073 words).
+- [x] **FANFIC-03** yield + precision: round-robin alias search, Wikipedia-search title resolution,
+      tag-key/word-boundary matching, explicit-declaration rule, quality floors. DONE.
+- [x] **FANFIC-04** Branch Oracle - canon decision points with 2-4 player-facing options. DONE.
+- [x] **FANFIC-05** OD-2 novel-vs-screen canon discriminator (wiki entity vocabulary). DONE.
+- [x] **FANFIC-06** EXT-1 output contract written down, closing OD-3. DONE.
+- [ ] **Link branches to canon MOMENTS** - blocked on the Canon Kernel exposing a resolvable scene id
+      (`(chapter, order_in_chapter)` or a documented `Scene.id`). Largest remaining integration gap; see
+      `docs/EXT-1-scraper-output-contract.md` section 6. **NEXT.**
+- [ ] **Decide OD-2 for real.** The wiki now proves 3 of the 5 spec cast members have different NOVEL names
+      (Debra->Deborah Morgan, Doakes->Albert Doakes, LaGuerta->Migdia LaGuerta), and our best Dexter branch
+      (*Set Free*) is screen-canon. Pick novel or screen canon deliberately.
+- [ ] Near-duplicate detection beyond exact SHA-256 — `datasketch` MinHash (word-5-gram, `num_perm=128`,
+      J=0.85) plus `MinHashLSHEnsemble(0.8)` for the chapter-inside-full-story-repost containment case.
+- [ ] Second source adapter behind the existing port (SpaceBattles / SufficientVelocity / RoyalRoad are all
+      reachable; XenForo threadmarks give chapter structure). No pipeline change required.
+- [ ] Serialized-work reassembly across multi-part posts + language filtering (`ftfy`, `lingua`).
+- [ ] **Separate branch:** wire the corpus into the knowledge base (schema contract is
+      `CORPUS_SCHEMA_VERSION` in `adapters/outbound/fanfic/jsonl_sink.py`).
+
 ## Later
 - `evals/` harness (coherence / continuity / on-genre, LLM-as-judge) — non-blocking.
 - API + CLI delivery adapters (thin).

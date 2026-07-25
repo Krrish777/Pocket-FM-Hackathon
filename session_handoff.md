@@ -62,3 +62,92 @@ output contract) — it is the highest-risk unknown and blocks M1/M4.
 ### State at clock-out
 `make check` GREEN (exit 0, 7 passed) · INIT-01…05 + HARDEN-01…04 pass · HARDEN-05 deferred below product work ·
 all M/S features `passes:false` · **uncommitted, awaiting the maintainer's permission to commit.**
+## Last session — 2026-07-25 (session 5, IN-EVENT: fan-fiction scraper)
+
+**Framing:** First in-event session. The brief LANDED and lives in the `Pocket FM Hack` vault
+(`_PROBLEM STATEMENT (official).md`, `_PROBLEM VERDICT (evidence-selected).md`) — **not yet copied into
+`CLAUDE.md`, so INIT-01 is still failing.** Chosen surface: **P1 · Infinite Story Universe**. Maintainer
+scoped this session to exactly one deliverable: *a scraper that takes a novel/film and saves its relevant
+fan fiction.* The knowledge base and the scraper→KB wiring are explicitly a **different branch, next session**.
+
+**Where the work is:** worktree `.claude/worktrees/reddit-fanfic-scraper`, branch
+`worktree-reddit-fanfic-scraper`. **Nothing committed** (permission not given).
+
+**What I did (all verified):**
+- **Measured before building.** 4 parallel research agents + live network probes. Finding that redirected the
+  build: **Reddit does not hold fandom fanfic prose** (fandom subs median selftext 141–620 chars; r/FanFiction
+  Rule 1 bans fic text), and **AO3 + fanfiction.net are Cloudflare-blocked**. **Wattpad is reachable keyless
+  and has both fandom search and full chapter prose.** Full evidence tables:
+  `docs/superpowers/specs/2026-07-25-fanfic-harvest-design.md`.
+- **Built `FANFIC-01`** hexagonally: pure `domain/fanfic_quality.py` + `domain/models/fanfic.py`;
+  `FanficSourcePort`/`AliasExpanderPort`/`CorpusSinkPort`; `WattpadSource`, `WikipediaAliasExpander`,
+  `JsonlCorpusSink`, shared `http_util`; `FanficHarvester` service; `story-engine harvest` CLI. 37 feature tests.
+- **`make check` GREEN** — ruff + format + mypy strict (55 files) + **44 tests**.
+- **`FANFIC-02` verified live:** `harvest "The Witcher"` → 18 aliases, 1 work / 3 chapters / **4,073 words** of
+  real Witcher prose → `data/raw/fanfic/the-witcher/{stories.jsonl,manifest.json}` (gitignored).
+- **Two bugs the first live run exposed, both fixed:** Wikimedia 403s any UA lacking a contactable URL/email
+  (silently killing alias expansion) → `STORY_ENGINE_CONTACT`; and `min_alias_hits=2` was unsatisfiable with a
+  one-term query, rejecting 20/20 → `required_alias_hits()` clamps to the available surface.
+
+## Session 5c — Branch Oracle, OD-2 discriminator, EXT-1 contract (3 parallel agents)
+`project_context.md` landed on main mid-session and is the SSOT. It reframed the deliverable: section 5.2 says
+fan fiction is "a source of branch structure only", never reproduced as prose. **We are EXT-1** in its section 9,
+whose contract was UNDEFINED and flagged the highest-risk integration.
+
+- **FANFIC-04 Branch Oracle** — `domain/fanfic_premise.py` + `domain/prose_score.py`. Mines canon decision
+  points with 2-4 player-facing options. Live Titanic: `character_survives:jack` support=3 -> 4 options from
+  3 independent authors. Option labels synthesized, never copied (test-enforced).
+- **FANFIC-05 OD-2** — wiki entity vocabulary + novel/screen discriminator. 314 Dexter entities:
+  novel 68 / screen 223 / both 9 / unknown 14. **Found that 3 of the 5 spec cast have different NOVEL names:
+  Debra->Deborah Morgan, Doakes->Albert Doakes, LaGuerta->Migdia LaGuerta.**
+- **FANFIC-06 EXT-1 contract** — `docs/EXT-1-scraper-output-contract.md`, closes OD-3.
+- **AO3 source** — only source that distinguishes canon (`Dexter Series - Jeff Lindsay` vs `Dexter (TV)`).
+  Traps: no Hits/Kudos so read/vote floors reject it (CLI auto-relaxes); dataset licence is NONE.
+- **Full depth** — `--max-chapters` default 500; Dexter 13 -> 43 chapters / 55,769 words.
+- **CLI** — `harvest` (new flags), `branches`, `wiki-index`.
+- **Collision averted:** `worktree-knowledge-base` already owns `domain/models/canon.py` + 11 enums; our work
+  re-pathed to `wiki_index.py` / `adapters/outbound/wiki/` and shares NO Python types with it.
+
+## State
+`make check` green (**237 tests**, mypy strict on 68 files). INIT-02…05, HARDEN-01…04, **FANFIC-01…06** pass.
+HARDEN-05 deferred. **INIT-01 is closed by `project_context.md` section 12** but its grep verification still
+points at the old CLAUDE.md marker — re-point it.
+
+## Session 5b — analyst evaluator loop (same session, after the first handoff draft)
+Ran the maintainer's requested loop on **Dexter (novel)** and **Titanic (movie)**, reviewing output as a
+fan-fiction analyst and fixing what the data exposed. Six fixes, each driven by a specific misclassification:
+1. **Round-robin alias search** (was exhausting term #1; 18 aliases discovered, 1 queried). Candidates 20 -> 40.
+2. **Wikipedia-search title resolution + `--kind`.** Films disambiguate by YEAR, so suffix guessing could never
+   reach `Titanic (1997 film)`. Before: "Dexter" -> `USS Dexter` (warship), "Titanic" -> the ship,
+   "The Avengers" -> 1960s spy series. After: `Dexter Morgan`, `Caledon Hockley`, `TARS`.
+3. **Alias noise filter + variant ranking** (dropped "List of box office records…", "Anti-Harry Potter
+   community"; demoted typos like "Hairy potter" behind real entities).
+4. **Tag-key + word-boundary alias matching.** Substring matching failed BOTH ways: tag `dextermorgan` missed
+   the alias "Dexter Morgan", while "dexter" wrongly matched inside `dextercharming` (Ever After High).
+5. **Explicit-declaration rule** — "…: A Dexter Fanfiction" is admitted on its own; adjacency required so
+   "Dexter ▷ Scott Summers" (X-Men) stays out.
+6. **Corpus-quality gates** — mature excluded by default, read/vote floors (killed a 54-read joke fic),
+   sentence-level disclaimer + byline stripping (0 leaks corpus-wide afterwards).
+
+**Result:** Titanic 10 works / 21 chapters / 23,830 words; Dexter 4 works / 13 chapters / 19,104 words.
+Precision spot-check 6/6 Dexter, 8/8 inspected Titanic. 59 tests green, FANFIC-03 now passes.
+
+## Next step (in priority order)
+1. **Maintainer benchmark review.** The agreed loop: maintainer names a film/novel, inspects every generated
+   file against their benchmark, sends corrections, iterate. Run `story-engine harvest "<title>"` and hand over
+   `stories.jsonl` + `manifest.json`.
+2. **INIT-01:** copy the official problem statement into `CLAUDE.md` and seed product features.
+3. Near-duplicate dedup (MinHash) — only exact SHA-256 dedup exists today.
+4. Ask before committing.
+
+## How to resume
+```bash
+cd ".claude/worktrees/reddit-fanfic-scraper"
+make check                                  # expect green, 59 tests
+uv run story-engine harvest "Dexter" --kind novel  --max-stories 10 --max-chapters 4
+uv run story-engine harvest "Titanic" --kind movie --max-stories 10 --max-chapters 4
+# --kind is effectively REQUIRED: without it, "Titanic" resolves to the ship, not the film.
+# then read data/raw/fanfic/<slug>/manifest.json and stories.jsonl
+```
+Read `docs/superpowers/specs/2026-07-25-fanfic-harvest-design.md` before changing sources or thresholds — it
+holds the measurements, so you don't re-derive (or contradict) them.
