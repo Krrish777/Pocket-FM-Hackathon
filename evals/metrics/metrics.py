@@ -1,44 +1,67 @@
-"""DeepEval metric definitions (Tier-2 quality evals) — SCAFFOLD, not yet wired.
+"""DeepEval metric definitions (Tier-2 quality evals).
 
-Prerequisite: `deepeval` is NOT yet a project dependency — add it under an eval group
-(`uv add --group eval deepeval`) before running any eval. Goldens/datasets are BLOCKED until the
-hackathon brief defines the engine's input->output contract AND a deterministic offline LLM path
-exists (today `StubLLM` raises). See `evals/README.md` and `.claude/rules/testing.md`.
+Scoped to what this repo can actually evaluate today. There is **no generator** — the LLM adapter
+is unbuilt and `StubLLM` raises — so every generator-side metric (`AnswerRelevancyMetric`,
+`FaithfulnessMetric`) is deliberately absent. Adding them now would produce metrics that error on
+a missing `actual_output` rather than signal.
 
-Copied from the `deepeval` skill template (`.claude/skills/deepeval/templates/metrics.py`). Reuse
-existing metrics and thresholds before adding new ones. Keep metrics in this one module so eval files
-stay focused on app execution.
+Metric selection follows one rule from `.claude/rules/testing.md`: **pytest answers code
+correctness, DeepEval answers output quality.** Anything checkable deterministically stays in
+`tests/` and does not appear here. Concretely, the spoiler guard is NOT a metric on this page —
+a leak is a set-equality violation and a hard build failure (`tests/integration/
+test_canon_invariants.py`), not something to hand to a probabilistic judge.
+
+⚠ **Every metric here is LLM-judged and needs credentials for an evaluation model.** With no key
+configured, `deepeval test run` fails at metric construction, not with a low score.
 """
 
 from deepeval.metrics import (
-    AnswerRelevancyMetric,
+    ContextualPrecisionMetric,
+    ContextualRecallMetric,
     ContextualRelevancyMetric,
-    StepEfficiencyMetric,
-    TaskCompletionMetric,
+    GEval,
 )
+from deepeval.test_case import LLMTestCaseParams
 
-SINGLE_TURN_TRACE_METRICS = [
-    TaskCompletionMetric(),
-    StepEfficiencyMetric(),
+RETRIEVAL_THRESHOLD = 0.5
+"""Deliberately not 0.7. The current embedder is `HashingEmbedder`, a bag-of-character-n-grams
+stand-in whose own docstring says it is *not* semantically meaningful. A threshold tuned for a real
+embedding model would fail every case and teach us nothing about the ranking we actually have. Raise
+this the moment a real embedder lands behind `EmbedderPort` — a threshold that never fails is as
+useless as one that always does."""
+
+
+NO_GOLDEN_METRICS = [
+    # The only retriever metric needing no reference answer: it scores retrieved passages against
+    # the query alone. This is the one that can run before a golden dataset exists.
+    ContextualRelevancyMetric(threshold=RETRIEVAL_THRESHOLD),
 ]
 
-SINGLE_TURN_NO_TRACING_METRICS = [
-    AnswerRelevancyMetric(),
+RETRIEVER_METRICS = [
+    ContextualRelevancyMetric(threshold=RETRIEVAL_THRESHOLD),
+    # Both of the following require `expected_output` on the golden — they will error, not score,
+    # on a dataset without it. See references/metrics.md "Reference-Based Metrics".
+    ContextualPrecisionMetric(threshold=RETRIEVAL_THRESHOLD),
+    ContextualRecallMetric(threshold=RETRIEVAL_THRESHOLD),
 ]
 
-MULTI_TURN_METRICS: list = []
+CANON_GROUNDING = GEval(
+    name="CanonGrounding",
+    criteria=(
+        "Determine whether the retrieved passages actually come from the Dexter novel and could "
+        "support answering the question. Passages that merely share vocabulary with the question "
+        "but concern an unrelated moment in the story should score low. Judge the passages only; "
+        "do not judge whether an answer was produced."
+    ),
+    # Only `input` and `retrieval_context` are listed because those are the only fields the test
+    # cases carry. Naming `expected_output` here would fail at runtime on a golden without one.
+    evaluation_params=[
+        LLMTestCaseParams.INPUT,
+        LLMTestCaseParams.RETRIEVAL_CONTEXT,
+    ],
+    threshold=RETRIEVAL_THRESHOLD,
+)
+"""The domain-specific criterion. Standard relevancy asks "is this on topic?"; this asks the thing
+that actually decides whether a scene can be rendered — could these passages *support* the claim?"""
 
-# Component-level metrics are span-specific. Do not create one shared list for the whole app.
-# Name each list after the exact component/span it evaluates, then attach it with either
-# next_agent_span / next_llm_span / next_tool_span / next_retriever_span, or @observe(metrics=[...]).
-RETRIEVER_SPAN_METRICS = [
-    ContextualRelevancyMetric(),
-]
-
-GENERATOR_LLM_SPAN_METRICS = [
-    AnswerRelevancyMetric(),
-]
-
-TOOL_SPAN_METRICS: list = []
-
-PLANNER_AGENT_SPAN_METRICS: list = []
+RETRIEVAL_QUALITY_METRICS = [*NO_GOLDEN_METRICS, CANON_GROUNDING]

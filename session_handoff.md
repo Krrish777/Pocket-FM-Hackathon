@@ -1,9 +1,87 @@
 # Session Handoff
 
 > The single per-session **clock-out** note. At session start read this first, then `PROGRESS.md` and
-> `DECISIONS.md`. Four sessions have clocked out here: **Session A** (product definition), **Session B**
-> (EXT-1 scraper build), **Session C** (EXT-1 IV&V audit), and **Session D** (knowledge-base IV&V audit
-> + remediation). **Session D is the most recent.**
+> `DECISIONS.md`. Five sessions have clocked out here: **Session A** (product definition), **Session B**
+> (EXT-1 scraper build), **Session C** (EXT-1 IV&V audit), **Session D** (knowledge-base IV&V audit
+> + remediation), and **Session E** (worktree cleanup, demo scope lock, novel ingestion).
+> **Session E is the most recent.**
+
+---
+
+## Session E — 2026-07-25 (scope lock + novel PDF ingestion)
+
+**Branch:** `main`. Both parallel worktrees were merged and removed; the session then locked the demo
+scope in writing and built the first task from it.
+
+### The one thing to read next
+**`demo.md`** — the scope fence. Nine demo beats, ordered tasks T0–T10, a pre-decided cut ladder, and an
+explicit not-building list. Estimated **~18 h of work against ~14 h of runway**; the cut ladder exists
+because that gap is real and should not be re-discovered at 3 a.m.
+
+### What I did
+1. **Cleaned the worktrees.** Removed `reddit-fanfic-scraper` and deregistered `knowledge-base`; pulled
+   `main` to `d1952c8` (PR #4). Both worktrees had been committed into `main` as **mode 160000 gitlinks**
+   — git recorded a bare commit-SHA pointer because it saw a nested `.git`, which is why the tree read
+   dirty after removal. Untracked both and added `.claude/worktrees/` to `.gitignore` so it cannot recur.
+   ⚠ The `knowledge-base` *directory* is still on disk: a live Claude session (pid 7456) holds a file
+   handle. Cosmetic — git ignores it. `rm -rf .claude/worktrees/knowledge-base` once that session closes.
+2. **Locked the scope** in `demo.md`, and folded T0–T10 into `BACKLOG.md` as the ordered queue.
+3. **Built INGEST-01** — novel PDF → chapter-addressed, citable text. See below.
+4. **Assessed three reference repos** (notebook-lm-clone, hermes-agent, and the maintainer's GitHub
+   stars) and recorded what to take vs leave in `BACKLOG.md`.
+
+### INGEST-01 — what was built, and the three upstream defects fixed
+Adapted from `patchy631/ai-engineering-hub/notebook-lm-clone`. **License is MIT** (© 2024 patchy631) —
+verified by reading `LICENSE` at the repo **root**; the prior `BACKLOG.md` warning that no license was
+stated had only checked the subdirectory. That claim is now corrected in place.
+
+- `domain/chunking.py` — pure, stdlib-only, overlapping sentence-aligned spans.
+- `adapters/outbound/ingestion/pdf_document_source.py` — PyMuPDF reader + chapter detection.
+- `ports/document_source.py`, `domain/models/document.py`, `DocumentIngestionError`.
+
+**Defect 1 — silent data loss.** Upstream advanced with `start = max(start + chunk_size - overlap, end)`,
+which jumps *past* `end` whenever the sentence snap retreats further than the overlap covers, dropping
+those characters entirely. A dropped span is a fact that exists in the novel and can never be cited.
+The trigger condition is exactly `start + chunk_size - overlap > end` — worth knowing, because the first
+proof fixture (84-char sentences, 20-char overlap) did **not** trigger it and the test correctly failed
+until the fixture was corrected. Short sentences relative to the window are what make it fire, and prose
+is full of them.
+
+**Defect 2 — quote/offset disagreement.** Upstream stripped the chunk text but recorded the *unstripped*
+offsets, so `text[char_start:char_end] != quote`. A citation that cannot resolve to its own coordinates
+is not a citation.
+
+**Defect 3 — page-relative offsets.** Changed to chapter-relative. Decisive, not cosmetic: the spoiler
+guard gates on **chapter** (`visible_to(fork, knower, chapter)`), and a page number cannot answer
+"has this been revealed yet?".
+
+**Design call worth keeping:** a PDF with no detectable chapter headings **raises** rather than degrading
+to a single chapter. Stamping every fact `chapter=1` leaves the guard running and its tests green while
+silently making the entire novel visible to every character from turn one — a green-suite failure of the
+headline claim. `allow_single_chapter=True` is the explicit opt-in.
+
+**Rejected:** upstream's retrieval path. `vector_db.search(query_vector, top_k)` applies no epistemic
+filter, so wiring it in would create a second unguarded read path beside `store.visible_to()`.
+
+### State
+`make check` **GREEN**. Suite **447 → 479** (32 new: 20 chunking, 10 PDF reader, 2 E2E). INGEST-01 added
+to `feature_list.json` with `passes: true`, earned by its own verification command. New dep: `pymupdf`,
+with a per-module mypy override (it ships no types) confined to the one adapter that imports it.
+
+### Next step
+**T1 — the LLM adapter.** Nothing in this repo can render a sentence: only `StubLLM` exists and
+`prompts/` is a lone README. It is the widest-reach unblocker on the board. Pull in
+**`567-labs/instructor`** with it (already placeheld in `pyproject.toml:17`) so model output is validated
+at the boundary with Pydantic per `.claude/rules/llm-storytelling.md` §5.
+
+Then **T3 — knowledge propagation** (`Scene.witnesses` → `knower_scope`), which is the load-bearing task
+for the entire demo.
+
+### Still blocking (`demo.md` §7)
+- **D-1 — where is the Dexter novel PDF?** Not in the repo; `data/` holds only `.gitkeep`. The reader is
+  built and tested, so this is now a five-minute task *once the file exists*.
+- **D-2 — snap-to-branch vs true free-form.** Recommend snap-to-branch.
+- **D-3 — novel vs screen canon** (OD-2), still open.
 
 ---
 

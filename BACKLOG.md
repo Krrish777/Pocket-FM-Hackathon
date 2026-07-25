@@ -4,7 +4,31 @@
 > `feature_list.json` (with a `verification` command, `passes:false`). `feature_list.json` is the machine
 > source of truth; this file is for humans to plan and reorder.
 
-## NOW — Product phase (session 5, 2026-07-25). The brief has landed.
+## 🟢 NOW — the 14-hour demo queue (session 7, 2026-07-25). **`demo.md` is the scope fence.**
+
+> **Read `demo.md` first.** It locks the nine demo beats, the ordered tasks below, a pre-decided cut
+> ladder, and an explicit not-building list. Estimated ~18 h against ~14 h of runway — the cut ladder
+> (`demo.md` §5) is the answer to that gap, and it was decided cold on purpose.
+>
+> **T2 landed this session** (see *Done* below). Everything else is open.
+
+| # | Task | Est. | Serves |
+|---|---|---|---|
+| T0 | **Regenerate `data/`** — re-run `story-engine harvest "Dexter" --kind novel` + `wiki-index "Dexter"`. `data/` holds only `.gitkeep`; the corpus lived in the deleted scraper worktree. | 30 m | T5 |
+| T1 | **LLM adapter + first prompt.** Only `StubLLM` exists and `prompts/` is one README, so nothing can render a sentence. Real adapter behind `LLMPort`, logging tokens/cost, `max_tokens` always set; `prompts/render_scene/v1.jinja`. **Widest-reach unblocker — do it first.** | 1.5 h | every text beat |
+| T3 | **Knowledge propagation — derive `knower_scope` from `Scene.witnesses`.** KB-13's unbuilt half. ⚠ **THE LOAD-BEARING TASK**: it is simultaneously the ripple, the butterfly effect, per-character memory, and the setup for the replay closer. `project_context.md` §4.2 calls it the acceptance condition for the whole build. | 2 h | beats 6, 7, 9 |
+| T4 | **Turn loop (`PlaythroughService`)** — assemble view → offer branch → apply choice → recompute witnesses → propagate → render. One narration call/turn; transitions deterministic in code. Closes M2/M3/M6. | 3 h | beats 2, 3, 7 |
+| T5 | **Branch Oracle → canon-moment binding.** The oracle cannot yet cite a canon scene (our own EXT-1 contract says so). Closes M4. | 2 h | beat 5 |
+| T6 | **Free-form intent router (snap-to-branch).** Embed the player's typed intent, match it to a mined branch at the current decision point, route to the pre-validated branch; below threshold, generate a candidate and verify *before* applying (also closes OD-4's degradation path). | 2 h | beats 4, 5 |
+| T7 | **Receipt surface.** Show the canon fact + source location behind a checked claim. Must separate *intentional divergence* from *accidental contradiction* (§5.5). Closes M7. | 1 h | beat 8 |
+| T8 | **Replay as another character.** Re-render the finished branch as Debra. Near-free given M8 — only the toggle is work. **Cheapest strong beat on the board; do not let it fall off the end.** | 45 m | beat 9 |
+| T9 | **API + frontend rewire + rehearsal.** The frontend's `CanonClient` targets the superseded single-flip contract (`getMoments`/`postDivergence`/`postRegenerate`) while the backend serves `/episodes`. Keep the mock alive as the stage fallback. | 3 h | all |
+| T10 | **Fix the broken verification commands.** Several `feature_list.json` entries verify with `-m unit -k …`, but `pyproject.toml` registers only `slow`/`integration`/`e2e` — there is **no `unit` marker**, so those commands select nothing and can never flip a feature to passing however good the code is (AUD-M3). | 20 m | the harness |
+
+**Blocking decisions** (`demo.md` §7): **D-1** where is the Dexter novel PDF · **D-2** snap-to-branch vs
+true free-form (recommend snap-to-branch) · **D-3** novel vs screen canon (OD-2, still open).
+
+## Product phase ordering (session 5, 2026-07-25) — superseded in ordering by the queue above
 
 > **Scope lives in `project_context.md` (§7), not here.** This list is the ordered queue only.
 > Provenance for every decision: `docs/2026-07-25-product-definition-session.md`.
@@ -229,12 +253,76 @@ podcast, vector_database, web_scraping.
   index maintains itself off the same Delta table that already backs canon time-travel.
 - Streamlit/Kokoro/AssemblyAI/Firecrawl — out of scope; text-first, and audio is SHOULD-tier (S1).
 
-⚠️ **License is NOT stated in the repo.** Do not vendor code from it without checking — default copyright
-applies otherwise. The *architecture* is free to learn from; the source is not free to copy. (Same trap
-that ruled out SymbolicToM.)
+✅ **License: MIT** (© 2024 patchy631), verified 2026-07-25 by cloning the repo and reading `LICENSE` at
+its **root**. An earlier note here claimed no license was stated — that check had only looked inside the
+`notebook-lm-clone/` subdirectory. Vendoring is fine; retain the copyright notice.
 
-**When this becomes real:** after the memory system is complete and the ingestion pipeline needs to read
-actual novel PDFs. Blocked on nothing technical — it is a sequencing choice, not a dependency.
+**STATUS: DONE (session 7, 2026-07-25).** Absorbed into `domain/chunking.py` +
+`adapters/outbound/ingestion/pdf_document_source.py`. Three upstream behaviours were deliberately
+changed — each is documented in the module docstring with a regression test:
+1. **Silent data loss.** `start = max(start + chunk_size - overlap, end)` skips past `end` whenever the
+   sentence snap retreats further than the overlap covers, dropping those characters entirely. A dropped
+   span is a fact that exists in the novel and can never be cited.
+2. **Quote/offset disagreement.** Upstream stripped the chunk text but kept the unstripped offsets, so
+   `text[char_start:char_end] != quote`. A citation that cannot resolve to its own coordinates is not one.
+3. **Page-relative offsets → chapter-relative.** Decisive, not cosmetic: the spoiler guard gates on
+   *chapter* (`visible_to(fork, knower, chapter)`), and a page number cannot answer "has this been
+   revealed yet?".
+
+Its **retrieval path was rejected**: `vector_db.search(query_vector, limit=top_k)` applies no epistemic
+filter, so wiring it in would create a second, unguarded read path beside `store.visible_to()` — exactly
+the spoiler side-channel `.claude/rules` warns about. Its citation-discipline *prompt* is still worth
+lifting into `prompts/` when T7 (the receipt surface) is built.
+## 🔵 FUTURE — absorb the agent harness (NOT this session; queued at the maintainer's request)
+
+**Reference:** [`NousResearch/hermes-agent`](https://github.com/nousresearch/hermes-agent) — **MIT,
+© 2025 Nous Research** (verified 2026-07-25 by cloning and reading `LICENSE`). Requested for its tool
+abstraction, agent loop, and self-improvement loop.
+
+**Scale check, measured not guessed.** `agent/` holds 100+ modules and `tools/` holds 102.
+`agent/conversation_loop.py` is **6,645 lines**; `agent/tool_executor.py` is **1,827**. This is a
+shipped desktop product, not a snippet source — **the patterns port, the code does not.** Budget for
+reading and re-implementing, never for pasting.
+
+**Correction worth carrying forward:** its "self-improvement loop" is *not* a model improving itself.
+`agent/learn_prompt.py` is explicit — `/learn` builds **one prompt** instructing the agent to author a
+reusable `SKILL.md` with tools it already has, with *"no separate distillation engine and no model-tool
+footprint."* Improvement is **skill accretion into files**, across sessions. It therefore cannot help a
+single five-minute demo, which is why it sits here rather than in the NOW queue.
+
+**TAKE (as patterns, when the turn loop exists):**
+- `agent/conversation_loop.py` — turn structure: model call → tool dispatch → retry/fallback →
+  compression → post-turn hooks. Our `PlaythroughService` (T4) is the same shape, much smaller.
+- `agent/tool_executor.py` + `tools/` — the tool-registry abstraction and sequential-vs-concurrent
+  dispatch.
+- `agent/context_engine.py`, `context_compressor.py` — bounded context assembly. Compare against our
+  `services/working_memory.py`, which already does the epistemic version of this.
+- `agent/verification_evidence.py`, `verify_hooks.py`, `verification_stop.py` — evidence-gated stopping.
+- `agent/learning_graph.py`, `learning_mutations.py`, `learn_prompt.py` — the skill-accretion loop.
+
+**LEAVE:** its provider adapters (we have `LLMPort`), billing/credits/rate-limit machinery, browser and
+computer-use tools, TUI/desktop/web surfaces, MCP plumbing — all irrelevant to a text playthrough.
+
+**Sequencing:** blocked on T4. Absorbing an agent loop before we have a turn loop to absorb it *into*
+would be building the harness for a product that does not exist yet.
+
+### Also starred, and relevant (assessed 2026-07-25 from the maintainer's GitHub stars)
+- **[`567-labs/instructor`](https://github.com/567-labs/instructor)** — structured outputs for LLMs.
+  **Highest-value item for T1.** `pyproject.toml` already carries the placeholder
+  `# Structured output: "instructor>=1"`, and `.claude/rules/llm-storytelling.md` §5 requires model
+  output to be validated at the boundary with Pydantic before it reaches the core. Pull this in with
+  the LLM adapter rather than hand-rolling parse-and-validate.
+- **[`opendatalab/MinerU`](https://github.com/opendatalab/MinerU)** — PDF/Office → LLM-ready
+  markdown/JSON. A stronger extractor than raw PyMuPDF for real novel layouts (columns, headers,
+  footnotes). Costs ML model weights and startup time. **Upgrade path for T2 only if PyMuPDF's output
+  on the actual Dexter PDF proves too noisy to chapter-split** — measure before adopting.
+- **[`activeloopai/hivemind`](https://github.com/activeloopai/hivemind)** — "turns your traces into
+  reusable skills across agents". The same skill-accretion idea as hermes `/learn`, at a fraction of
+  the size. Prefer it as the reference if the self-improvement loop is ever built.
+- **[`promptfoo/promptfoo`](https://github.com/promptfoo/promptfoo)** — prompt/RAG testing. Overlaps
+  our Tier-2 eval lane (`evals/`, DeepEval per `.claude/rules/testing.md`). **Do not adopt a second
+  eval framework** without re-running the skill-vetting matrix; one is already chosen.
+
 ## Fan-fiction corpus (in progress, branch `worktree-reddit-fanfic-scraper`)
 - [x] **FANFIC-01** scraper: novel/film in → relevant fan-fiction prose out, saved as KB-ready JSONL. DONE.
 - [x] **FANFIC-02** live harvest produces a real non-empty corpus. DONE (The Witcher, 4,073 words).

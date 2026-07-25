@@ -65,3 +65,14 @@ class SourceUnavailableError(HarvestError):
     """A fan-fiction host was unreachable, rate-limited, or returned an unusable payload."""
 
     code = "source_unavailable"
+
+
+class DocumentIngestionError(HarvestError):
+    """A source document could not be read into citable chapters.
+
+    Raised rather than degraded, because every downstream guarantee is chapter-addressed: a
+    document that silently collapses to one chapter produces facts whose `chapter` is a lie, and
+    the spoiler guard gates on exactly that field.
+    """
+
+    code = "document_ingestion_failed"

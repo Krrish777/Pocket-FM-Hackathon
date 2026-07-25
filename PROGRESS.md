@@ -37,15 +37,49 @@
   and fixed **4 real defects**. Corpus artifact is schema **1.2**. Per `project_context.md` §5.2 its
   deliverable is **branch structure, not prose** — fan fiction supplies *what the options are* and is
   never reproduced. **Do not invest further here**; it produces what the playable layer needs.
-- **Last commit:** `2a25444` "regular updates" (16 files, +715/−145) — the IV&V fixes plus 5 files staged
-  by a prior session. Preceded by `8d70e1b`, created by a **parallel session** that swept the shared
-  index. See Known Issues on the shared git index.
-- **Verification:** `make check` is **GREEN** — exit code 0, **286 passing** (up from 237), stable across
-  5 consecutive runs including 2 in randomized order. INIT-01…05 + HARDEN-01…04 + FANFIC-01…07 pass.
+- **Worktrees are gone (session 7).** Both parallel branches merged (PR #2, PR #4) and their worktrees
+  removed; `main` pulled to `d1952c8`. They had been committed as **mode 160000 gitlinks** — now
+  untracked, with `.claude/worktrees/` in `.gitignore` so it cannot recur. All parallel work is on `main`.
+- **`demo.md` is the scope fence (session 7).** Nine demo beats, tasks T0–T10, a pre-decided cut ladder,
+  and an explicit not-building list. **~18 h of work against ~14 h of runway** — read the cut ladder
+  before adding anything.
+- **Verification:** `make check` is **GREEN** — exit code 0, **479 passing** (up from 447).
+  INIT-01…05 + HARDEN-01…04 + FANFIC-01…07 + KB-01/07/08/09/10/11/12 + **INGEST-01** pass.
   HARDEN-05 deferred (deprioritised below product work).
-  **All product features M1–M8 / S1–S3 are `passes:false` — nothing product-side is built yet.**
+  **All product features M1–M8 / S1–S3 are still `passes:false`** — the substrate is strong, but nothing
+  the player touches exists yet. Nothing in this repo can render a sentence: only `StubLLM` exists and
+  `prompts/` is a lone README.
 
 ## Completed
+### Session 7 (2026-07-25) — worktree cleanup, scope lock, novel PDF ingestion (INGEST-01 ✅)
+- [x] **Worktrees cleaned and `main` reconciled.** The tree read dirty after `git worktree remove`
+      because the index still held gitlink pointers to directories that had vanished.
+- [x] **`demo.md` written** — the scope fence, with the cut ladder decided cold rather than at 3 a.m.
+- [x] **INGEST-01 — novel PDF → chapter-addressed citable text.** Adapted from
+      `patchy631/ai-engineering-hub/notebook-lm-clone` (**MIT**, verified at the repo root; the prior
+      "no license stated" note had only checked the subdirectory, and is now corrected in place).
+      **Three upstream defects fixed, each with a regression test:**
+      (1) **silent data loss** — `start = max(start + chunk_size - overlap, end)` skips past `end`
+      whenever the sentence snap retreats further than the overlap covers; a dropped span is a fact that
+      exists in the novel and can never be cited. Trigger condition is `start + chunk_size - overlap >
+      end`, so short sentences relative to the window are what make it fire — the first proof fixture
+      did *not* trigger it and the test correctly failed until corrected.
+      (2) **quote/offset disagreement** — offsets recorded before stripping, so the quote did not match
+      its own coordinates.
+      (3) **page-relative → chapter-relative offsets** — decisive, because the spoiler guard gates on
+      chapter and a page number cannot answer "has this been revealed yet?".
+      **Design call:** a PDF with no chapter headings **raises** rather than collapsing to one chapter —
+      `chapter=1` everywhere leaves the guard green while making the whole novel visible to everyone.
+      **Rejected:** upstream's retrieval path, which applies no epistemic filter and would open a second
+      unguarded read path beside `store.visible_to()`.
+      E2E proves the full chain: real PDF → PyMuPDF → chunk → `Provenance` → SQLite → **restart** →
+      source re-read from disk → offsets still resolve, with the guard still gating by chapter.
+- [x] **Reference repos assessed and recorded in `BACKLOG.md`** — `NousResearch/hermes-agent` (MIT;
+      `conversation_loop.py` is 6,645 lines, so patterns port and code does not; its "self-improvement
+      loop" is skill accretion into `SKILL.md` files, not a model improving itself) and the maintainer's
+      GitHub stars, of which **`567-labs/instructor`** is the highest-value item for the next task.
+
+
 ### Session 6 (2026-07-25) — IV&V audit of the scraper (FANFIC-07): 4 defects found and fixed
 > Run under "assume the scraper is incorrect until evidence proves otherwise." Verification session, not
 > a feature session. Every finding below was proven by **executing** code, not by reading it.
