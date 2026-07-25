@@ -7,8 +7,12 @@
 ## Project Overview
 AI-powered **generative storytelling engine** (Python 3.12+, hexagonal architecture): writes/adapts/
 extends serialized stories, episode generators, interactive plots. LLM at the edges, pure domain core.
-- **Problem statement: `TODO`** — the exact hackathon brief is not yet known. Do **not** build features
-  on a vague requirement; capture the brief here first, then seed `feature_list.json`.
+- **Problem statement → [`project_context.md`](project_context.md)** — the single source of truth for
+  *what we are building and why*. **Read it before building anything.** Track: P1 Story Time Machine +
+  Infinite Story Universe. Product: a playable branching layer over the Dexter novels — pick a character,
+  play forward through choices mined from fan-fiction, every character remembering only what they
+  actually learned. If any doc in this repo conflicts with it, `project_context.md` wins (see its §12).
+- Decision provenance for the above: [`docs/2026-07-25-product-definition-session.md`](docs/2026-07-25-product-definition-session.md).
 
 ## Quick Start / Verification
 ```bash

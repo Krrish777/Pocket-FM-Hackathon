@@ -153,3 +153,24 @@
   it grows + a `research/README.md` map; a new root **`reference/llms.txt`** hub collects upstream dependencies'
   published `llms.txt` (**link, don't vendor**). Distinct direction/lifecycle — both wired into CLAUDE.md/AGENTS.md.
 - **Rejected:** vendoring upstream docs (staleness + repo bloat); a README per research subfolder (kept one index).
+
+## 2026-07-25 (session 5): Installed the Databricks AI Dev Kit, scoped to Claude Code only
+- **Reason:** User confirmed a real Databricks workspace they intend to use for the hackathon, and asked for the
+  full kit (`--skills-profile all`). Provides the `databricks` MCP server (50+ tools), `databricks-tools-core`,
+  and 34 skills (Databricks + MLflow + agent-evaluation).
+- **Shape:** installed via `install.ps1 --tools claude --skills-profile all --silent`. Global runtime lives in
+  `~/.ai-dev-kit/` (own venv) — **zero new deps in `pyproject.toml`**, so the hexagon is untouched. Project-local
+  artifacts: `.claude/skills/` (34 dirs), `.mcp.json`, `.ai-dev-kit/` state.
+- **Scoped to `--tools claude`** deliberately: the default writes skill dirs for 8 editors
+  (`.cursor/ .github/ .agents/ .gemini/ .windsurf/ .opencode/ .kiro/`). `.agents/` already holds our vendored
+  deepeval scaffolding, and we only use Claude Code. Result: `.claude/settings.json` (SessionStart clock-in hook)
+  and `.claude/rules/` were **not modified** — verified via `git status`.
+- **`make check` fallout:** `ruff check .` linted the vendored skill scripts (78 errors). Fixed by extending the
+  existing exclusion — `extend-exclude = [".agents", ".claude/skills"]` — same rationale as `.agents/`
+  (vendored, not our code). `make check` GREEN after: ruff + format (146 files) + mypy (45) + 7 tests.
+- **Gitignored** `.ai-dev-kit/` and `.mcp.json`: the MCP config hardcodes absolute paths into
+  `C:/Users/777kr/.ai-dev-kit/.venv`, so it is machine-local, not portable. Repro command is in `.gitignore`.
+- **Rejected:** `databricks aitools install` (built into CLI v1.9.0, sources `databricks/databricks-agent-skills`)
+  — it ships skills+plugin only, no MCP server, and the dev kit is a superset that already pulls that repo in;
+  running both would double-install the same skills. **Watch item:** the dev-kit installer prints a deprecation
+  notice — a future release will delegate skill installation to `databricks aitools`. Revisit then.

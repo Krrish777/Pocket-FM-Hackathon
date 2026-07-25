@@ -40,6 +40,14 @@ evals/reports/
 # Notebooks scratch
 .ipynb_checkpoints/
 
+# Databricks AI Dev Kit (installed via install.ps1 --tools claude --skills-profile all)
+# Install state + MCP config are machine-local: .mcp.json hardcodes absolute paths into
+# ~/.ai-dev-kit/.venv, so it is not portable to another machine. Reproduce with:
+#   irm https://raw.githubusercontent.com/databricks-solutions/ai-dev-kit/main/install.ps1 -OutFile install.ps1
+#   .\install.ps1 --tools claude --skills-profile all
+.ai-dev-kit/
+.mcp.json
+
 # OS / editor
 .DS_Store
 Thumbs.db
