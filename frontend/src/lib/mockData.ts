@@ -48,6 +48,8 @@ export type Character = {
   id: string;
   name: LocalizedText;
   role: LocalizedText;
+  /** Two-line teaser for the Timeline redesign's character card. */
+  blurb: LocalizedText;
   portraitUrl: string;
 };
 
@@ -143,6 +145,16 @@ export const ui = {
   recommendedBadge: { hi: "अनुशंसित", en: "RECOMMENDED" },
   enterStoryButton: { hi: "कहानी शुरू करें", en: "Enter Story" },
 
+  backToStories: { hi: "कहानियों पर वापस", en: "Back to Stories" },
+  episodesCountLabel: { hi: "एपिसोड", en: "Episodes" },
+  charactersCountLabel: { hi: "किरदार", en: "Characters" },
+  viewJourneyButton: { hi: "यात्रा देखें", en: "View Journey" },
+  openTimeMachineButton: { hi: "टाइम मशीन खोलें", en: "Open Time Machine" },
+  timelineBannerSub: {
+    hi: "किसी भी पल को फिर से जीने और कहानी की दिशा बदलने के लिए टाइम मशीन का इस्तेमाल करें।",
+    en: "Use the Time Machine to revisit any moment and change the course of the story.",
+  },
+
   navHome: { hi: "होम", en: "Home" },
   navJourneys: { hi: "यात्राएं", en: "My Journeys" },
   navTimeMachine: { hi: "टाइम मशीन", en: "Time Machine" },
@@ -237,24 +249,40 @@ export const storyDetail: StoryDetail = {
       id: "CH-01",
       name: { hi: "आरव सेन", en: "Aarav Sen" },
       role: { hi: "जो 'क्यों' पूछता है", en: "The one who asks why" },
+      blurb: {
+        hi: "वह सवाल पूछता है जो कोई और नहीं पूछता।\nएक नाकामी छुपाए बैठा है जिसे कोई नहीं जानता।",
+        en: "Asks the question no one else will.\nCarries a failure nobody knows about.",
+      },
       portraitUrl: "/portraits/aarav.jpg",
     },
     {
       id: "CH-02",
       name: { hi: "देवांश अय्यर", en: "Devansh Iyer" },
       role: { hi: "जो अपने पिता को ढो रहा है", en: "The one carrying his father" },
+      blurb: {
+        hi: "अपने पिता की लिखी सूची ढोता है।\nकुछ रातें, बोझ दिख जाता है।",
+        en: "Carries a list his father wrote for him.\nSome nights, the weight shows.",
+      },
       portraitUrl: "/portraits/dev.jpg",
     },
     {
       id: "CH-03",
       name: { hi: "कबीर मल्होत्रा", en: "Kabir Malhotra" },
       role: { hi: "जिसका कैमरा छुपा हुआ है", en: "The one with a hidden camera" },
+      blurb: {
+        hi: "वह देखता है जो सब अनदेखा करते हैं।\nपरिवार को अब भी एक इंजीनियर चाहिए।",
+        en: "Photographs what everyone pretends not to see.\nHis family still expects an engineer.",
+      },
       portraitUrl: "/portraits/kabir.jpg",
     },
     {
       id: "CH-04",
       name: { hi: "प्रो. राजन व्यास", en: "Prof. Rajan Vyas" },
       role: { hi: "जिसने यह मशीन बनाई", en: "The one who built the machine" },
+      blurb: {
+        hi: "वही व्यवस्था बनाई जो सबको नापती है।\nएक अनखुला ख़त अब भी थामे हैं।",
+        en: "Built the system that measures everyone.\nStill carries a letter he's never opened.",
+      },
       portraitUrl: "/portraits/vyas.jpg",
     },
   ],

@@ -1,15 +1,16 @@
 "use client";
 
 import { playSelect } from "@/lib/audio";
-import type { Episode } from "@/lib/mockData";
+import { t, type Episode, type Locale } from "@/lib/mockData";
 import { cn } from "@/lib/utils";
 
 /**
- * TimelineTrack — DESIGN.md §6.4.
+ * TimelineTrack — Timeline redesign (see reference mock).
  *
- * A single hairline rule with episode nodes sitting on it. Nodes breathe
- * (opacity 0.85 → 1.0 over 4s, staggered 200ms) to signal the system is
- * tracking state. Ambient only — it must never pull focus from the cascade.
+ * A single rule, gradient orange → violet, with episode nodes sitting on it.
+ * Nodes breathe (opacity 0.85 → 1.0 over 4s, staggered 200ms) to signal the
+ * system is tracking state. Ambient only — it must never pull focus from the
+ * cascade.
  *
  * An episode is clickable only when the selected character has an authored
  * divergence point there, so there is no such thing as a dead click.
@@ -19,20 +20,28 @@ export function TimelineTrack({
   characterId,
   selectedEpisodeId,
   episodesWithMoments,
+  locale,
   onSelectEpisode,
 }: {
   episodes: Episode[];
   characterId: string | null;
   selectedEpisodeId: string | null;
   episodesWithMoments: Set<string>;
+  locale: Locale;
   onSelectEpisode: (episodeId: string) => void;
 }) {
   return (
     <div className="relative w-full">
       {/* The rule the whole track hangs from. */}
-      <div className="bg-ink-line absolute top-[11px] right-0 left-0 h-px" />
+      <div
+        className="absolute top-[13px] right-0 left-0 h-px"
+        style={{
+          background: "linear-gradient(90deg, #f2994a, #a86ee0)",
+          opacity: 0.4,
+        }}
+      />
 
-      <ol className="relative flex items-start justify-between">
+      <ol className="relative flex items-start justify-between gap-2">
         {episodes.map((episode, i) => {
           const present = characterId
             ? episode.characters.includes(characterId)
@@ -52,15 +61,15 @@ export function TimelineTrack({
                   onSelectEpisode(episode.id);
                 }}
                 className={cn(
-                  "relative grid size-[22px] place-items-center",
+                  "relative grid size-[26px] place-items-center rounded-full border",
+                  selected
+                    ? "border-accent"
+                    : present
+                      ? "border-violet-400/50"
+                      : "border-ink-line",
                   selectable ? "cursor-pointer" : "cursor-default",
                 )}
               >
-                {/* Selection ring — 20px, accent, 1px. */}
-                {selected ? (
-                  <span className="border-accent absolute size-5 rounded-full border" />
-                ) : null}
-
                 <span
                   className={cn(
                     "animate-breathe block size-[10px] rounded-full border transition-colors duration-200 ease-out",
@@ -82,6 +91,14 @@ export function TimelineTrack({
                 )}
               >
                 {episode.id}
+              </span>
+              <span
+                className={cn(
+                  "type-body text-center whitespace-nowrap",
+                  selected ? "text-ink-bright" : "text-ink-muted",
+                )}
+              >
+                {t(episode.title, locale)}
               </span>
             </li>
           );

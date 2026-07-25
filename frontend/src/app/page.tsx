@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { AppHeader } from "@/components/AppHeader";
 import { CanonButton } from "@/components/CanonButton";
 import { Sidebar, SIDEBAR_WIDTH } from "@/components/Sidebar";
+import { t, ui } from "@/lib/mockData";
 import { SCREEN_TRANSITION } from "@/lib/tokens";
 import { cn } from "@/lib/utils";
 import { DefectProof } from "@/screens/DefectProof";
@@ -56,7 +57,7 @@ export default function Page() {
         <div className="mb-8 flex min-h-[40px] items-center">
           {screen !== "shelf" ? (
             <CanonButton variant="ghost" arrow={false} onClick={back}>
-              ← BACK
+              {`← ${screen === "timeline" ? t(ui.backToStories, locale) : "BACK"}`}
             </CanonButton>
           ) : null}
         </div>
