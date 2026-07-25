@@ -18,6 +18,9 @@ from dataclasses import dataclass
 from sqlalchemy import Engine
 
 from story_engine.adapters.outbound.embedding.hashing_embedder import HashingEmbedder
+from story_engine.adapters.outbound.fanfic.branch_oracle_factory import (
+    build_branch_oracle,
+)
 from story_engine.adapters.outbound.file_prompt_store import FilePromptStore
 from story_engine.adapters.outbound.in_memory import InMemoryStoryBibleRepository
 from story_engine.adapters.outbound.ingestion.pdf_document_source import (
@@ -87,10 +90,13 @@ def build_container(settings: Settings | None = None) -> Container:
 
     _seed_demo_fork_if_empty(canon_store, engine)
 
+    oracle = build_branch_oracle(
+        settings, fallback=ScriptedBranchOracle(demo_branches())
+    )
     playthrough = PlaythroughService(
         store=canon_store,
         memory=memory,
-        oracle=ScriptedBranchOracle(demo_branches()),
+        oracle=oracle,
         llm=llm,
         prompts=prompts,
         cast=CAST,

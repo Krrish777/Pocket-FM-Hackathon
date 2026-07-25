@@ -68,6 +68,14 @@ class Settings(BaseSettings):
     temperature_prose: float = 0.8
     temperature_structured: float = 0.2
 
+    # ---- Branch Oracle ----
+    # `authored` is the DEFAULT and MUST stay the default: `corpus` changes a chapter's option set,
+    # which changes the visible-fact count `DEMO_SCRIPT` keys on (`{knower}:{chapter}:{fact_count}`),
+    # silently degrading the rehearsed beats into mechanical fallback prose. See DECISIONS.md,
+    # 2026-07-26 session 8.
+    branch_oracle: Literal["authored", "corpus"] = "authored"
+    branch_oracle_corpus_dir: str = "data/raw/fanfic/dexter"
+
     # ---- Cost governance ----
     request_budget_usd: float = 0.50
 

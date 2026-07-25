@@ -243,7 +243,14 @@ def register(app: typer.Typer) -> None:
         novel: Path = typer.Option(
             ..., "--novel", help="Path to the novel PDF to ingest."
         ),
-        db: Path = typer.Option(DEFAULT_DB, "--db", help="SQLite file to ingest into."),
+        db: Path = typer.Option(
+            DEFAULT_DB,
+            "--db",
+            help="SQLite file to ingest into. To serve these facts from the running API/CLI "
+            "container (not just this command), set DATABASE_URL=sqlite:///<this path> — "
+            "`bootstrap.build_container` reads `settings.database_url` and will NOT re-seed or "
+            "duplicate facts if this fork already has any.",
+        ),
         fork: str = typer.Option("canon", "--fork", help="Fork to write facts into."),
         source_id: str = typer.Option(
             "darkly-dreaming-dexter", "--source-id", help="Provenance source id."
@@ -302,3 +309,13 @@ def register(app: typer.Typer) -> None:
                 f"Run `story-engine reconcile --fork {fork}`."
             )
             raise typer.Exit(code=1)
+
+        typer.echo(
+            "\nThis novel is now on disk, but NOT yet served by the running API/CLI unless you "
+            "point it at this file. To serve the full novel:\n"
+            f"  DATABASE_URL=sqlite:///{db}\n"
+            "`bootstrap.build_container` reads `settings.database_url` (env `DATABASE_URL`) to "
+            "open the canon store, so setting it before starting the API or `story-engine play` "
+            "serves exactly what was just ingested. It will NOT re-seed the demo fork or "
+            f"duplicate facts, because fork {fork!r} already has some."
+        )

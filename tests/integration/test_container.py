@@ -8,18 +8,41 @@ a playthrough and get back a rendered `Turn`.
 guarantee that `build_container` needs no `OPENAI_API_KEY` and touches no network.
 """
 
+from datetime import UTC, datetime
 from pathlib import Path
 
+import pymupdf
 import pytest
 
 from story_engine import bootstrap as bootstrap_module
 from story_engine.bootstrap import build_container
+from story_engine.cli.ingest import build_facts_from_novel, build_ingest_service
 from story_engine.config.settings import Settings
 from story_engine.domain.models.play import Playthrough, Turn
 from story_engine.resources.dexter_demo import CAST, FORK_ID
 from story_engine.services.demo_seed import DemoSeedError
 
 pytestmark = pytest.mark.integration
+
+_INGEST_CHAPTERS = [
+    "Chapter 1: Night Work\n"
+    "Dexter kept the slides in a rosewood box beneath the air conditioner. He counted them "
+    "twice before the sun came up, and the Passenger counted with him.",
+    "Chapter 2: Deborah\n"
+    "Deborah asked about the harbour again over breakfast. She did not know about the box, "
+    "and Dexter intended to keep it that way.",
+]
+
+
+def _write_novel(path: Path) -> Path:
+    """Render `_INGEST_CHAPTERS` into a genuine multi-page PDF, one chapter per page."""
+    document = pymupdf.open()
+    for body in _INGEST_CHAPTERS:
+        page = document.new_page()
+        page.insert_text((72, 72), body, fontsize=11)
+    document.save(path)
+    document.close()
+    return path
 
 
 def test_build_container_needs_no_api_key_when_llm_provider_is_scripted(
@@ -90,3 +113,56 @@ def test_build_container_degrades_rather_than_crashing_when_the_demo_seed_fails(
     assert container.playthrough is not None
     # The failed seed left the fork's canon empty — that is the honest, reported degradation.
     assert container.canon_store.all_facts(FORK_ID) == ()
+
+
+def test_container_serves_a_novel_ingested_via_the_ingest_cli_path(
+    tmp_path: Path,
+) -> None:
+    """GAP 1 regression test: an ingested novel must be reachable through `build_container`.
+
+    `story-engine ingest` and `bootstrap.build_container` used to point at different DBs by
+    default (`data/interim/canon_ingest.db` vs `data/interim/demo.db`), so a fully-ingested novel
+    was inert — unreachable from the API or `PlaythroughService`. This proves the fix:
+    `settings.database_url` pointed at the SAME file the ingest CLI wrote to makes the container's
+    canon store serve exactly those facts, unmodified, through the existing `visible_to` guard —
+    no new read path, no re-seed, no duplication.
+    """
+    novel = _write_novel(tmp_path / "novel.pdf")
+    db = tmp_path / "canon_ingest.db"
+
+    facts = build_facts_from_novel(
+        novel,
+        source_id="test-novel",
+        fork_id=FORK_ID,  # matches both the ingest CLI's default `--fork` and the demo's FORK_ID
+        chunk_size=200,
+        overlap=50,
+        recorded_at=datetime(2026, 7, 26, 9, 0, tzinfo=UTC),
+    )
+    assert facts, "ingestion produced no facts at all"
+
+    service, _store, _vectors = build_ingest_service(db)
+    written = service.ingest(facts)
+    assert written == len(facts)
+
+    settings = Settings(
+        database_url=f"sqlite:///{db}",
+        llm_provider="scripted",
+    )
+
+    container = build_container(settings)
+
+    # The 612-fact trap: pointing the container at an already-populated DB must NOT trigger the
+    # demo-fork seed-on-empty path, and must not duplicate the ingested facts.
+    served_facts = container.canon_store.all_facts(FORK_ID)
+    assert {f.id for f in served_facts} == {f.id for f in facts}
+    assert len(served_facts) == len(facts)
+
+    # The API/services read path — `visible_to` — still gates by chapter over the ingested data.
+    max_chapter = max(f.provenance.chapter for f in facts)
+    visible_at_one = container.canon_store.visible_to(FORK_ID, "dexter", 1)
+    assert {f.provenance.chapter for f in visible_at_one} == {1}
+
+    visible_at_end = container.canon_store.visible_to(FORK_ID, "dexter", max_chapter)
+    assert {f.provenance.chapter for f in visible_at_end} == set(
+        range(1, max_chapter + 1)
+    )

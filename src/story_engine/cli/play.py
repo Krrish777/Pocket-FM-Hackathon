@@ -14,6 +14,9 @@ from pathlib import Path
 import typer
 from sqlmodel import SQLModel, create_engine
 
+from story_engine.adapters.outbound.fanfic.branch_oracle_factory import (
+    build_branch_oracle,
+)
 from story_engine.adapters.outbound.file_prompt_store import FilePromptStore
 from story_engine.adapters.outbound.ingestion.pdf_document_source import (
     PdfDocumentSource,
@@ -21,6 +24,7 @@ from story_engine.adapters.outbound.ingestion.pdf_document_source import (
 from story_engine.adapters.outbound.persistence.canon_store import SqliteCanonStore
 from story_engine.adapters.outbound.scripted_llm import ScriptedLLM
 from story_engine.adapters.outbound.scripted_oracle import ScriptedBranchOracle
+from story_engine.config.settings import get_settings
 from story_engine.domain.models.play import ChoiceOption, Playthrough
 from story_engine.resources.dexter_demo import CAST, FORK_ID
 from story_engine.resources.dexter_demo_script import DEMO_SCRIPT
@@ -48,10 +52,17 @@ def _build(db: Path, novel: Path, *, seed: bool) -> PlaythroughService:
         facts = seed_canon(store, PdfDocumentSource(), novel)
         typer.echo(f"Seeded {len(facts)} canon facts from {novel.name}.")
 
+    # Honours `settings.branch_oracle` the same way `bootstrap.build_container` does; the DEFAULT
+    # ("authored") returns the fallback unchanged, so the rehearsed path and `DEMO_SCRIPT`'s
+    # `{knower}:{chapter}:{fact_count}` keys are untouched unless `BRANCH_ORACLE=corpus` is set.
+    oracle = build_branch_oracle(
+        get_settings(), fallback=ScriptedBranchOracle(demo_branches())
+    )
+
     return PlaythroughService(
         store=store,
         memory=WorkingMemory(store),
-        oracle=ScriptedBranchOracle(demo_branches()),
+        oracle=oracle,
         # Authored beats for the rehearsed path; anything off it composes mechanically, so a
         # departure from the script is visible rather than plausible.
         llm=ScriptedLLM(DEMO_SCRIPT),

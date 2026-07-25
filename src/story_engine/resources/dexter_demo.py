@@ -257,3 +257,17 @@ BRANCHES: dict[int, tuple[Branch, ...]] = {
 """Five decision points, then the run closes. Options carrying a `source_work_id` came from the
 harvested corpus; `None` marks one authored to complete the rehearsed path, so the distinction
 stays auditable (`project_context.md` §5.2)."""
+
+
+def chapter_subjects() -> dict[int, str]:
+    """One canon subject per chapter, drawn from `ANCHORS`'s own chapter/subject pairs.
+
+    Used to map the harvested corpus's mined branch points (keyed by canon *entity*) onto the
+    demo's chapters, in `adapters/outbound/fanfic/branch_oracle_factory.py`. The first anchor at
+    each chapter wins if more than one names that chapter — a chapter has one focal character for
+    this purpose, not a ranked list.
+    """
+    subjects: dict[int, str] = {}
+    for anchor in ANCHORS:
+        subjects.setdefault(anchor.chapter, anchor.subject_id)
+    return subjects
