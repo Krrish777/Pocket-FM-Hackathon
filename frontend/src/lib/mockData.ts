@@ -37,6 +37,8 @@ export type StorySummary = {
   id: string;
   title: LocalizedText;
   coverUrl: string;
+  /** Two-line teaser shown on the Shelf card — Screen 1 redesign. */
+  blurb: LocalizedText;
   episodeCount: number;
   factCount: number;
   language: LocalizedText;
@@ -117,6 +119,7 @@ export const ui = {
   appName: { hi: "कैनन", en: "CANON" },
   appSubtitle: { hi: "कहानी टाइम मशीन", en: "STORY TIME MACHINE" },
 
+  welcomeEyebrow: { hi: "कैनन में स्वागत है", en: "WELCOME TO CANON" },
   shelfHeading: {
     hi: "वो रास्ते जो कभी नहीं लिए गए",
     en: "The paths never taken",
@@ -125,10 +128,27 @@ export const ui = {
     hi: "कोई कहानी चुनिए। कोई पल चुनिए। एक फ़ैसला बदलिए।",
     en: "Choose a story. Choose a moment. Change one decision.",
   },
+  infinityBannerLead: {
+    hi: "हर फ़ैसला एक नई दुनिया बनाता है।",
+    en: "Every decision creates a new world.",
+  },
+  infinityBannerSub: {
+    hi: "आपके फ़ैसले अनंत को आकार देते हैं।",
+    en: "Your choices shape infinity.",
+  },
 
   episodesLabel: { hi: "एपिसोड", en: "EPISODES" },
   factsLabel: { hi: "तथ्य", en: "FACTS" },
   charactersLabel: { hi: "किरदार", en: "CHARACTERS" },
+  recommendedBadge: { hi: "अनुशंसित", en: "RECOMMENDED" },
+  enterStoryButton: { hi: "कहानी शुरू करें", en: "Enter Story" },
+
+  navHome: { hi: "होम", en: "Home" },
+  navJourneys: { hi: "यात्राएं", en: "My Journeys" },
+  navTimeMachine: { hi: "टाइम मशीन", en: "Time Machine" },
+  navUniverse: { hi: "ब्रह्मांड", en: "Universe" },
+  navFavorites: { hi: "पसंदीदा", en: "Favorites" },
+  navSettings: { hi: "सेटिंग्स", en: "Settings" },
 
   canonLabel: { hi: "मूल कथा", en: "CANON" },
   whatIfLabel: { hi: "और अगर…", en: "WHAT IF…" },
@@ -166,6 +186,10 @@ export const stories: StorySummary[] = [
     id: "ST-01",
     title: { hi: "आख़िरी बेंच", en: "The Last Bench" },
     coverUrl: "/covers/last-bench.jpg",
+    blurb: {
+      hi: "एक ख़ामोश शहर। एक भूली हुई बेंच।\nएक चिट्ठी सब कुछ बदल देती है।",
+      en: "A quiet town. A forgotten bench.\nOne letter changes everything.",
+    },
     episodeCount: 6,
     factCount: 34,
     language: { hi: "हिन्दी", en: "HINDI" },
@@ -175,6 +199,10 @@ export const stories: StorySummary[] = [
     id: "ST-02",
     title: { hi: "मानसून फ़्रीक्वेंसी", en: "Monsoon Frequency" },
     coverUrl: "/covers/monsoon.jpg",
+    blurb: {
+      hi: "जब बारिश कोड में बोलती है,\nकेवल चुने हुए ही सुन सकते हैं।",
+      en: "When the rain speaks in code,\nonly the chosen can hear.",
+    },
     episodeCount: 8,
     factCount: 51,
     language: { hi: "हिन्दी", en: "HINDI" },
@@ -183,6 +211,10 @@ export const stories: StorySummary[] = [
     id: "ST-03",
     title: { hi: "नक़्शानवीस की बेटी", en: "The Cartographer's Daughter" },
     coverUrl: "/covers/cartographer.jpg",
+    blurb: {
+      hi: "कुछ नक़्शे जगहों तक ले जाते हैं।\nकुछ सच्चाइयों तक।",
+      en: "Some maps lead to places.\nOthers lead to truths.",
+    },
     episodeCount: 5,
     factCount: 29,
     language: { hi: "हिन्दी", en: "HINDI" },

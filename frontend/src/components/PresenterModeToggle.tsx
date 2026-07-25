@@ -1,5 +1,6 @@
 "use client";
 
+import { Clock } from "lucide-react";
 import { useEffect } from "react";
 
 import { cn } from "@/lib/utils";
@@ -41,13 +42,14 @@ export function PresenterModeToggle() {
       aria-pressed={presenterMode}
       title="Presenter mode (P)"
       className={cn(
-        "type-index border px-3 py-2 transition-all duration-[160ms] ease-out",
+        "type-index flex items-center gap-2 rounded-full border transition-all duration-[160ms] ease-out",
         presenterMode
           ? // Escape hatch: parked top-right, all but invisible until hovered.
-            "fixed top-4 right-4 z-50 border-ink-line text-ink-faint opacity-15 hover:opacity-100 hover:text-ink-bright"
-          : "border-ink-line text-ink-muted hover:border-ink-muted hover:text-ink-bright",
+            "fixed top-4 right-4 z-50 border-ink-line px-3 py-2 text-ink-faint opacity-15 hover:opacity-100 hover:text-ink-bright"
+          : "border-ink-line bg-shell-raised/60 text-ink-bright px-4 py-2 hover:border-ink-muted",
       )}
     >
+      {presenterMode ? null : <Clock className="text-ink-muted size-3.5" strokeWidth={1.75} />}
       {presenterMode ? "EXIT" : "PRESENT"}
     </button>
   );

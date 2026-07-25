@@ -28,6 +28,18 @@ const STATE_COLOR_ALLOWLIST = new Set([
   "components/VerifierBadge.tsx",
 ]);
 
+/**
+ * The Shelf screen (2026-07-25 redesign) deliberately supersedes the sharp-
+ * corner rule from DESIGN.md §4 — rounded cards/nav pills are the brief for
+ * that screen specifically, not a lapse. Everything else in the app still
+ * answers to radius-discipline; this allowlist is intentionally narrow.
+ */
+const ROUNDED_ALLOWLIST = new Set([
+  "components/Sidebar.tsx",
+  "components/StoryCard.tsx",
+  "screens/Shelf.tsx",
+]);
+
 const RULES = [
   {
     id: "radius-discipline",
@@ -100,6 +112,8 @@ for (const file of walk(SRC)) {
   const lines = source.split("\n");
 
   for (const rule of RULES) {
+    if (rule.id === "radius-discipline" && ROUNDED_ALLOWLIST.has(rel)) continue;
+
     lines.forEach((line, i) => {
       for (const match of line.matchAll(rule.pattern)) {
         violations.push({ rel, line: i + 1, rule: rule.id, match: match[0], message: rule.message });

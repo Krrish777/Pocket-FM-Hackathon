@@ -1,3 +1,5 @@
+import { Sparkles } from "lucide-react";
+
 import { t, ui } from "@/lib/mockData";
 import type { Locale } from "@/lib/mockData";
 
@@ -29,8 +31,9 @@ export function Logo({ locale }: { locale: Locale }) {
         {t(ui.appName, locale)}
       </span>
 
-      <span className="type-index text-ink-muted hidden sm:inline">
+      <span className="type-index text-ink-muted hidden items-center gap-1.5 sm:inline-flex">
         {t(ui.appSubtitle, locale)}
+        <Sparkles className="size-3" strokeWidth={1.75} aria-hidden="true" />
       </span>
     </div>
   );

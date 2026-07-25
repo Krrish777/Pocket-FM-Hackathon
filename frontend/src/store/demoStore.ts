@@ -43,6 +43,13 @@ type DemoState = {
   /** Gates the "SEE WHAT HAPPENS" button — it appears only after the cascade settles. */
   cascadeComplete: boolean;
 
+  /**
+   * Which sidebar rail item reads as active. Only "home" maps to a real
+   * destination (the shelf); the rest are shelf-realism, same spirit as the
+   * two non-playable story cards — present for tone, not wired to a screen.
+   */
+  sidebarActive: string;
+
   selectStory: (storyId: string) => void;
   selectCharacter: (characterId: string) => void;
   openMoment: (episodeId: string, momentId: string) => void;
@@ -56,6 +63,7 @@ type DemoState = {
   reset: () => void;
   toggleLocale: () => void;
   togglePresenterMode: () => void;
+  setSidebarActive: (id: string) => void;
 };
 
 const INITIAL = {
@@ -70,6 +78,7 @@ const INITIAL = {
   altId: null,
   rippleId: null,
   cascadeComplete: false,
+  sidebarActive: "home",
 };
 
 export const useDemoStore = create<DemoState>((set, get) => ({
@@ -113,4 +122,6 @@ export const useDemoStore = create<DemoState>((set, get) => ({
   toggleLocale: () => set({ locale: get().locale === "hi" ? "en" : "hi" }),
 
   togglePresenterMode: () => set({ presenterMode: !get().presenterMode }),
+
+  setSidebarActive: (id) => set({ sidebarActive: id }),
 }));

@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "framer-motion";
 
 import { AppHeader } from "@/components/AppHeader";
 import { CanonButton } from "@/components/CanonButton";
+import { Sidebar, SIDEBAR_WIDTH } from "@/components/Sidebar";
 import { SCREEN_TRANSITION } from "@/lib/tokens";
 import { cn } from "@/lib/utils";
 import { DefectProof } from "@/screens/DefectProof";
@@ -32,6 +33,7 @@ const SCREENS: Record<Screen, React.ComponentType> = {
 
 export default function Page() {
   const screen = useDemoStore((s) => s.screen);
+  const locale = useDemoStore((s) => s.locale);
   const presenterMode = useDemoStore((s) => s.presenterMode);
   const back = useDemoStore((s) => s.back);
 
@@ -39,12 +41,14 @@ export default function Page() {
 
   return (
     <div className={cn("min-h-screen", presenterMode && "presenting")}>
+      {presenterMode ? null : <Sidebar locale={locale} />}
       <AppHeader />
 
       <main
+        style={presenterMode ? undefined : { paddingLeft: SIDEBAR_WIDTH }}
         className={cn(
           "mx-auto w-full px-6 pb-24 lg:px-16",
-          // Presenter Mode drops the max-width constraint and the header offset.
+          // Presenter Mode drops the max-width constraint and the header/sidebar offset.
           presenterMode ? "pt-12" : "max-w-[1280px] pt-28",
         )}
       >
