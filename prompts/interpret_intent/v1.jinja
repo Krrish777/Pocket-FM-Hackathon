@@ -1,0 +1,43 @@
+{# interpret_intent/v1 — route the player's typed action onto one of the offered options.
+
+   This is intent ROUTING onto a constrained action set, not an open-ended action interpreter: the
+   model picks the closest of a short, fixed menu, or says none of them fit. It never invents a new
+   option and never learns what an option does to the world.
+
+   Variables (all required; StrictUndefined makes a missing one fail loud):
+     protagonist : str         — whose action this is
+     action      : str         — exactly what the player typed, verbatim
+     options     : list[dict]  — the options on offer right now. Each: id, label. NEVER the
+                                 consequence — what an option does to the world is not this
+                                 model's business, and telling it would leak the future.
+
+   THE CONTRACT: the response is JSON and nothing else. `choice_id` must be one of the ids listed
+   below, or null. A caller validates this independently and will discard any id that was not
+   actually offered, so inventing one buys nothing — but do not invent one anyway.
+#}
+You are routing one line of player input onto a short menu of options in an interactive story.
+{{ protagonist }} just typed the following action, in their own words:
+
+"{{ action }}"
+
+The options actually on offer right now are:
+{% for option in options %}
+- id: {{ option.id }}
+  label: {{ option.label }}
+{% endfor %}
+
+Decide which option, if any, is the closest match in INTENT to what {{ protagonist }} typed. The
+player will not always name an option exactly — match the underlying intent, not the wording. If
+none of the options are a reasonably close match, say so rather than forcing a pick.
+
+Respond with JSON only, no other text and no code fence, in exactly this shape:
+{"choice_id": "<one of the ids above, or null>", "confidence": <number 0.0-1.0>, "reasoning": "<one short sentence, in second person, e.g. \"you chose to ...\">"}
+
+Rules:
+1. `choice_id` must be copied verbatim from the ids listed above, or be `null`. Never invent an id
+   and never combine parts of two ids.
+2. `confidence` reflects how sure you are this is what {{ protagonist }} meant — use the low end of
+   the range for a vague or ambiguous action.
+3. If the action does not clearly correspond to any option, set `choice_id` to `null` and explain
+   briefly in `reasoning` rather than guessing.
+4. Output nothing besides the JSON object.

@@ -21,16 +21,22 @@ from story_engine.adapters.outbound.ingestion.pdf_document_source import (
 from story_engine.adapters.outbound.persistence.canon_store import SqliteCanonStore
 from story_engine.adapters.outbound.scripted_llm import ScriptedLLM
 from story_engine.adapters.outbound.scripted_oracle import ScriptedBranchOracle
-from story_engine.domain.models.play import Playthrough
+from story_engine.domain.models.play import ChoiceOption, Playthrough
 from story_engine.resources.dexter_demo import CAST, FORK_ID
 from story_engine.resources.dexter_demo_script import DEMO_SCRIPT
 from story_engine.services.demo_seed import DEFAULT_NOVEL, demo_branches, seed_canon
+from story_engine.services.intent_router import IntentRouter
 from story_engine.services.playthrough import PlaythroughService
 from story_engine.services.working_memory import WorkingMemory
 
 logger = logging.getLogger(__name__)
 
 RULE = "-" * 72
+
+# Placeholder model id for the intent router's offline demo path. `ScriptedLLM` never reads this
+# (it keys on the idempotency key), so it is only ever a label — Task 3 wires the configured
+# provider's real model id in here via `bootstrap.py`.
+INTENT_MODEL = "gpt-4o-mini"
 
 
 def _build(db: Path, novel: Path, *, seed: bool) -> PlaythroughService:
@@ -52,6 +58,55 @@ def _build(db: Path, novel: Path, *, seed: bool) -> PlaythroughService:
         prompts=FilePromptStore("prompts"),
         cast=CAST,
     )
+
+
+def _build_intent_router() -> IntentRouter:
+    """Wire an `IntentRouter` for the offline demo path.
+
+    `ScriptedLLM` here plays the same role it plays in `_build`: `story-engine play` must still
+    run with no API key. Its unscripted fallback composes plain text rather than intent JSON, so
+    a typed action with nothing scripted for it simply resolves to no match — never a crash, and
+    never a call to a real provider. Task 3 swaps this for the configured provider.
+    """
+    return IntentRouter(
+        llm=ScriptedLLM(), prompts=FilePromptStore("prompts"), model=INTENT_MODEL
+    )
+
+
+def _resolve_pick(
+    typed: str,
+    *,
+    options: tuple[ChoiceOption, ...],
+    router: IntentRouter,
+    protagonist: str,
+) -> str | None:
+    """Resolve one line of prompt input to a `choice_id`, or `None` if nothing matched.
+
+    A numeric pick is the rehearsal path and is kept as-is. Anything else is the player's typed
+    action, in their own words — it goes through `IntentRouter`, which routes it onto one of
+    `options` or reports no match. This function never applies a consequence; it only decides
+    which `choice_id`, if any, `advance` should be called with.
+
+    Raises:
+        typer.BadParameter: A numeric pick was out of the offered range.
+    """
+    try:
+        pick = int(typed)
+    except ValueError:
+        pick = None
+
+    if pick is not None:
+        if not 1 <= pick <= len(options):
+            raise typer.BadParameter(f"pick 1-{len(options)}")
+        return options[pick - 1].id
+
+    resolved = router.resolve(action=typed, options=options, protagonist=protagonist)
+    if resolved.choice_id is None:
+        return None
+
+    label = next(option.label for option in options if option.id == resolved.choice_id)
+    typer.echo(f"  > interpreted as: {label}")
+    return resolved.choice_id
 
 
 def _show(run: Playthrough) -> None:
@@ -117,16 +172,20 @@ def register(app: typer.Typer) -> None:
             db.unlink()
 
         service = _build(db, novel, seed=fresh or not db.exists())
+        intent_router = _build_intent_router()
         run = service.begin(fork_id=FORK_ID, protagonist=character, chapter=1)
         _show(run)
 
-        for _ in range(turns):
+        turns_taken = 0
+        while turns_taken < turns:
             options = run.turns[-1].choices
             if not options:
                 typer.echo("\nThe run has reached the end of its branches.")
                 break
 
-            typer.echo("\nWhat do you do?")
+            typer.echo(
+                "\nWhat do you do? (type a number, or describe your action in your own words)"
+            )
             for position, option in enumerate(options, start=1):
                 origin = (
                     f"  (from fan fiction {option.source_work_id})"
@@ -135,16 +194,25 @@ def register(app: typer.Typer) -> None:
                 )
                 typer.echo(f"  {position}. {option.label}{origin}")
 
+            chosen_id: str | None
             if auto:
                 pick = 1
                 typer.echo(f"  > {pick} (auto)")
+                chosen_id = options[pick - 1].id
             else:
-                pick = typer.prompt("  >", type=int, default=1)
-            if not 1 <= pick <= len(options):
-                raise typer.BadParameter(f"pick 1-{len(options)}")
+                typed: str = typer.prompt("  >", default="1")
+                chosen_id = _resolve_pick(
+                    typed, options=options, router=intent_router, protagonist=character
+                )
+                if chosen_id is None:
+                    typer.echo(
+                        "\nThat didn't clearly match one of the options above. Try again:"
+                    )
+                    continue
 
-            run = service.advance(run, options[pick - 1].id)
+            run = service.advance(run, chosen_id)
             _show(run)
+            turns_taken += 1
 
         if replay_as:
             if replay_as not in CAST:
