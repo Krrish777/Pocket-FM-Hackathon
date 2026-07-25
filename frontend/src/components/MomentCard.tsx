@@ -9,15 +9,16 @@ import { t, ui, type Locale, type Moment } from "@/lib/mockData";
 import { cn } from "@/lib/utils";
 
 /**
- * MomentCard — DESIGN.md §6.6.
+ * MomentCard — Divergence redesign (same pattern as Shelf/Timeline).
  *
- * The paper/dark contrast does the heavy lifting here: canon is *paper*, the
+ * The paper/dark contrast still does the heavy lifting: canon is *paper*, the
  * hypotheticals are *machine*. That split teaches the whole visual language in
- * one screen without a word of explanation.
+ * one screen without a word of explanation — this redesign softens corners
+ * and adds the gradient selection language, but keeps the dichotomy intact.
  *
  * Rows are real radios (Base UI, the primitive shadcn installed) so arrow-key
- * navigation and screen-reader semantics work. The spec shows no radio dot, so
- * selection is expressed by the accent wash and the 2px left border instead.
+ * navigation and screen-reader semantics work. Selection is expressed by a
+ * gradient border + wash rather than the old flat left-border indicator.
  */
 export function MomentCard({
   moment,
@@ -42,7 +43,7 @@ export function MomentCard({
           {`${t(ui.canonLabel, locale)} · ${episodeId}`}
         </IndexMark>
 
-        <blockquote className="bg-paper-warm text-paper-ink type-prose p-6">
+        <blockquote className="bg-paper-warm text-paper-ink type-prose rounded-2xl p-6">
           {t(moment.originalLine, locale)}
         </blockquote>
       </div>
@@ -54,7 +55,7 @@ export function MomentCard({
         </IndexMark>
 
         <RadioGroup
-          className="gap-0"
+          className="flex flex-col gap-3"
           // Always a string, never undefined: Base UI decides controlled vs
           // uncontrolled on first render, and `undefined → "ALT-A"` would flip
           // it mid-life and warn.
@@ -72,12 +73,12 @@ export function MomentCard({
                 key={alternative.altId}
                 value={alternative.altId}
                 className={cn(
-                  "border-ink-line flex w-full cursor-pointer items-start gap-4 border-b p-4 text-left",
-                  "border-l-2 transition-colors duration-200 ease-out outline-none",
+                  "flex w-full cursor-pointer items-start gap-4 rounded-2xl border p-4 text-left",
+                  "transition-colors duration-200 ease-out outline-none",
                   "focus-visible:bg-shell-raised",
                   selected
-                    ? "border-l-accent bg-accent-wash text-ink-bright"
-                    : "text-ink-muted hover:bg-shell-raised hover:text-ink-bright border-l-transparent",
+                    ? "border-accent/60 bg-accent-wash text-ink-bright"
+                    : "border-ink-line text-ink-muted hover:bg-shell-raised hover:text-ink-bright",
                 )}
               >
                 <IndexMark

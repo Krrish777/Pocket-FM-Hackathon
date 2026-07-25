@@ -1,10 +1,9 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
+import { Waves } from "lucide-react";
 import { useEffect } from "react";
 
-import { CanonButton } from "@/components/CanonButton";
-import { IndexMark } from "@/components/IndexMark";
 import { RippleCounters } from "@/components/RippleCounters";
 import { RippleGraph } from "@/components/RippleGraph";
 import { useDivergence } from "@/lib/api";
@@ -48,10 +47,10 @@ export function Ripple() {
 
   return (
     <section className="flex flex-col gap-10">
-      <header className="flex flex-col gap-2">
-        <IndexMark className="text-ink-muted">
+      <header className="flex flex-col gap-3">
+        <span className="type-index bg-accent-wash text-accent w-fit rounded-full px-3 py-1.5">
           {ripple?.rippleId ?? "—"}
-        </IndexMark>
+        </span>
         <h1 className="type-title text-ink-bright">
           {t(ui.rippleHeading, locale)}
         </h1>
@@ -62,14 +61,28 @@ export function Ripple() {
           {t(ui.loadingRipple, locale)}
         </p>
       ) : (
-        <div className="grid gap-10 lg:grid-cols-[1fr_auto]">
-          <div className="min-h-[380px]">
-            <RippleGraph ripple={ripple} running />
-          </div>
+        <div className="border-ink-line bg-shell-raised/20 relative overflow-hidden rounded-2xl border p-8">
+          {/* Ambient glow behind the graph — same atmosphere language as the
+              Shelf/Timeline cover art, kept out of RippleGraph itself so the
+              SVG stays pure hand-authored coordinates. */}
+          <div
+            className="pointer-events-none absolute inset-0"
+            style={{
+              background:
+                "radial-gradient(60% 50% at 20% 45%, rgb(200 85 61 / 0.12), transparent 70%)",
+            }}
+            aria-hidden="true"
+          />
 
-          {/* Counters, separated from the graph by a vertical rule (DESIGN.md §8). */}
-          <div className="border-ink-line lg:border-l lg:pl-10">
-            <RippleCounters ripple={ripple} locale={locale} running />
+          <div className="relative grid gap-10 lg:grid-cols-[1fr_auto]">
+            <div className="min-h-[380px]">
+              <RippleGraph ripple={ripple} running />
+            </div>
+
+            {/* Counters, separated from the graph by a vertical rule (DESIGN.md §8). */}
+            <div className="border-ink-line lg:border-l lg:pl-10">
+              <RippleCounters ripple={ripple} locale={locale} running />
+            </div>
           </div>
         </div>
       )}
@@ -77,15 +90,20 @@ export function Ripple() {
       <div className="flex min-h-[52px] justify-end">
         <AnimatePresence>
           {cascadeComplete ? (
-            <motion.div
+            <motion.button
+              type="button"
+              onClick={showOutput}
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: DURATION.base, ease: EASE.canon }}
+              className="type-label flex cursor-pointer items-center gap-2 rounded-full px-6 py-3.5 text-shell-void"
+              style={{
+                background: "linear-gradient(135deg, #f2994a, #e0608f 60%, #a86ee0)",
+              }}
             >
-              <CanonButton onClick={showOutput}>
-                {t(ui.seeResultButton, locale)}
-              </CanonButton>
-            </motion.div>
+              <Waves className="size-4" strokeWidth={1.75} />
+              {t(ui.seeResultButton, locale)}
+            </motion.button>
           ) : null}
         </AnimatePresence>
       </div>

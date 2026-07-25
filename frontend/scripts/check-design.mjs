@@ -29,18 +29,25 @@ const STATE_COLOR_ALLOWLIST = new Set([
 ]);
 
 /**
- * The Shelf + Timeline screens (2026-07-25 redesign) deliberately supersede
- * the sharp-corner rule from DESIGN.md §4 — rounded cards/nav pills are the
- * brief for those screens specifically, not a lapse. Everything else in the
- * app still answers to radius-discipline; this allowlist is intentionally
- * narrow, one entry per redesigned file.
+ * The whole demo flow (2026-07-25 redesign, Shelf → Defect) deliberately
+ * supersedes the sharp-corner rule from DESIGN.md §4 — rounded cards/nav
+ * pills/panels are the brief for the redesigned screens, not a lapse. This
+ * allowlist is intentionally one entry per redesigned file rather than a
+ * blanket exemption, so a rounded corner landing in an untouched file still
+ * fails the gate.
  */
 const ROUNDED_ALLOWLIST = new Set([
   "components/Sidebar.tsx",
   "components/StoryCard.tsx",
   "components/CharacterCard.tsx",
+  "components/MomentCard.tsx",
+  "components/RippleCounters.tsx",
+  "components/SceneOutputPanel.tsx",
+  "components/VerifierBadge.tsx",
   "screens/Shelf.tsx",
   "screens/Timeline.tsx",
+  "screens/Ripple.tsx",
+  "screens/DefectProof.tsx",
 ]);
 
 const RULES = [

@@ -3,7 +3,6 @@
 import { TriangleAlert } from "lucide-react";
 
 import { CanonButton } from "@/components/CanonButton";
-import { IndexMark } from "@/components/IndexMark";
 import { SceneOutputPanel } from "@/components/SceneOutputPanel";
 import { VerifierBadge } from "@/components/VerifierBadge";
 import {
@@ -45,12 +44,10 @@ export function DefectProof() {
     <section className="flex flex-col items-start gap-8">
       {/* Accent, not `--state-invalid`: the reserved red belongs to the verdict
           itself (the badge below), so it still means something when it appears. */}
-      <header className="flex items-center gap-3">
-        <TriangleAlert size={16} className="text-accent" aria-hidden="true" />
-        <IndexMark className="text-accent">
-          DEMONSTRATION · BROKEN BRANCH
-        </IndexMark>
-      </header>
+      <span className="type-index bg-accent-wash text-accent flex w-fit items-center gap-2 rounded-full px-3 py-1.5">
+        <TriangleAlert size={14} aria-hidden="true" />
+        DEMONSTRATION · BROKEN BRANCH
+      </span>
 
       <SceneOutputPanel
         header="DRAFT · UNVERIFIED"
@@ -69,7 +66,7 @@ export function DefectProof() {
               VIEW BOTH PASSAGES
             </DialogTrigger>
 
-            <DialogContent className="bg-shell-base border-ink-line max-w-3xl sm:max-w-3xl">
+            <DialogContent className="bg-shell-base border-ink-line max-w-3xl rounded-2xl sm:max-w-3xl">
               <DialogHeader>
                 <DialogTitle className="type-title text-ink-bright">
                   {t(ui.verifierFlagged, locale)}
@@ -81,19 +78,19 @@ export function DefectProof() {
 
               <div className="grid gap-8 md:grid-cols-2 md:gap-0">
                 <div className="md:pr-8">
-                  <IndexMark className="text-ink-muted mb-3 block">
+                  <span className="type-index text-ink-muted mb-3 block">
                     {t(ui.draftClaimLabel, locale)}
-                  </IndexMark>
-                  <p className="bg-paper-warm text-paper-ink type-prose p-6">
+                  </span>
+                  <p className="bg-paper-warm text-paper-ink type-prose rounded-2xl p-6">
                     {t(flagged.citation.draftClaim, locale)}
                   </p>
                 </div>
 
                 <div className="border-ink-line md:border-l md:pl-8">
-                  <IndexMark className="text-ink-muted mb-3 block">
+                  <span className="type-index text-ink-muted mb-3 block">
                     {t(ui.canonSaysLabel, locale)}
-                  </IndexMark>
-                  <p className="bg-paper-aged text-paper-ink type-prose p-6">
+                  </span>
+                  <p className="bg-paper-aged text-paper-ink type-prose rounded-2xl p-6">
                     {t(flagged.citation.canonFact, locale)}
                   </p>
                 </div>

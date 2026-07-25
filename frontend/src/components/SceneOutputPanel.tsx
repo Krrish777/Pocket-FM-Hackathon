@@ -1,15 +1,16 @@
 "use client";
 
-import { IndexMark } from "@/components/IndexMark";
 import { t, type Locale, type LocalizedText } from "@/lib/mockData";
 import { cn } from "@/lib/utils";
 
 /**
- * SceneOutputPanel — DESIGN.md §6.8. The payoff.
+ * SceneOutputPanel — Output redesign (same pattern as Shelf/Timeline).
  *
  * Narrative always sits on paper; the machine keeps the dark shell. This is the
  * one component allowed to cast `--shadow-lift`, because the paper physically
- * sits above the shell — everywhere else, separation is a hairline rule.
+ * sits above the shell — everywhere else, separation is a hairline rule. That
+ * physicality metaphor is untouched; only the paper's corners and the header
+ * chrome pick up the new rounded/pill language.
  */
 export function SceneOutputPanel({
   header,
@@ -33,11 +34,13 @@ export function SceneOutputPanel({
 
   return (
     <div className="flex flex-col gap-4">
-      <IndexMark className="text-ink-muted">{header}</IndexMark>
+      <span className="type-index bg-accent-wash text-accent w-fit rounded-full px-3 py-1.5">
+        {header}
+      </span>
 
       <article
         data-testid="scene-text"
-        className="bg-paper-warm text-paper-ink border-paper-aged max-w-[68ch] border p-12"
+        className="bg-paper-warm text-paper-ink border-paper-aged max-w-[68ch] rounded-2xl border p-12"
         style={{ boxShadow: "var(--shadow-lift)" }}
       >
         {paragraphs.map((paragraph, i) => (

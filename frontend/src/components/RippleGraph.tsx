@@ -14,9 +14,12 @@ import { CASCADE, EASE, RIPPLE_VIEWBOX } from "@/lib/tokens";
  * arresting *and* be the actual evidence for "guaranteed consistent". It is one
  * of only two places in the app with assertive motion.
  *
- * Everything is hand-authored SVG on frozen coordinates (see layout-ripple.ts).
- * The cascade timings come from DESIGN.md §6.7 via the CASCADE token, so the
- * counters beside the graph can animate off the same numbers.
+ * Everything is hand-authored SVG on frozen coordinates (see layout-ripple.ts)
+ * — positions never animate, only opacity/scale/color, so the graph never
+ * reads as a physics simulation. The 2026-07-25 redesign re-choreographs the
+ * cascade (fork glow burst, a "pop" on hold/invalid instead of a flat tween)
+ * but keeps the CASCADE timing envelope from DESIGN.md §6.7 so the counters
+ * beside the graph and the forward-button gate in Ripple.tsx stay in sync.
  */
 
 const NODE_RADIUS = 4;
@@ -30,31 +33,32 @@ const UNTOUCHED = {
   r: NODE_RADIUS,
 };
 
-const FINAL: Record<NodeState, Record<string, string | number>> = {
+const FINAL: Record<NodeState, Record<string, string | number | number[]>> = {
   fork: {
     fill: "var(--color-accent)",
     stroke: "var(--color-accent)",
     opacity: 1,
     r: FORK_RADIUS,
   },
-  // Invalidated: dimmed to 0.35 and shrunk to 0.75 of resting size.
+  // Invalidated: a brief pop before settling dim (0.35 opacity) and shrunk.
   invalid: {
     fill: "var(--color-state-invalid)",
     stroke: "var(--color-state-invalid)",
     opacity: 0.35,
-    r: NODE_RADIUS * 0.75,
+    r: [NODE_RADIUS, NODE_RADIUS * 1.35, NODE_RADIUS * 0.75],
   },
+  // Held: a confirming pop as it brightens, not a flat fade-in.
   hold: {
     fill: "var(--color-state-hold)",
     stroke: "var(--color-state-hold)",
     opacity: 1,
-    r: NODE_RADIUS,
+    r: [NODE_RADIUS, NODE_RADIUS * 1.25, NODE_RADIUS],
   },
   new: {
     fill: "var(--color-state-new)",
     stroke: "var(--color-state-new)",
     opacity: 1,
-    r: NODE_RADIUS,
+    r: [NODE_RADIUS * 0.5, NODE_RADIUS * 1.2, NODE_RADIUS],
   },
 };
 
@@ -141,28 +145,66 @@ export function RippleGraph({
       </g>
 
       <g>
+        {/* The fork's glow burst — a soft gradient ring expanding once, under
+            everything else, so the pulse reads as light rather than a shape. */}
+        <motion.circle
+          cx={layout.fork.x}
+          cy={layout.fork.y}
+          fill="none"
+          stroke="var(--color-accent)"
+          strokeWidth={2}
+          initial={{ r: 0, opacity: 0 }}
+          animate={
+            running
+              ? { r: [0, FORK_RADIUS * 5], opacity: [0.9, 0] }
+              : { r: 0, opacity: 0 }
+          }
+          transition={{
+            duration: CASCADE.fork.duration * 2,
+            delay: CASCADE.fork.at,
+            ease: EASE.canon,
+          }}
+        />
+
         {layout.nodes.map((node) => {
           const isNew = node.state === "new";
           const delay = delayFor(node.state, node.order);
 
           return (
             <g key={node.factId}>
-              {/* New facts carry a 16px ring that expands as they arrive. */}
+              {/* New facts carry a ring that expands as they arrive — two
+                  staggered rings (accent → state-new) read as a shimmer. */}
               {isNew ? (
-                <motion.circle
-                  cx={node.x}
-                  cy={node.y}
-                  fill="none"
-                  stroke="var(--color-state-new)"
-                  strokeWidth={1}
-                  initial={{ r: 0, opacity: 0 }}
-                  animate={running ? { r: 8, opacity: 0.8 } : { r: 0, opacity: 0 }}
-                  transition={{
-                    duration: CASCADE.new.duration,
-                    delay,
-                    ease: EASE.canon,
-                  }}
-                />
+                <>
+                  <motion.circle
+                    cx={node.x}
+                    cy={node.y}
+                    fill="none"
+                    stroke="var(--color-accent)"
+                    strokeWidth={1}
+                    initial={{ r: 0, opacity: 0 }}
+                    animate={running ? { r: 10, opacity: 0 } : { r: 0, opacity: 0 }}
+                    transition={{
+                      duration: CASCADE.new.duration * 1.4,
+                      delay,
+                      ease: EASE.canon,
+                    }}
+                  />
+                  <motion.circle
+                    cx={node.x}
+                    cy={node.y}
+                    fill="none"
+                    stroke="var(--color-state-new)"
+                    strokeWidth={1}
+                    initial={{ r: 0, opacity: 0 }}
+                    animate={running ? { r: 8, opacity: 0.8 } : { r: 0, opacity: 0 }}
+                    transition={{
+                      duration: CASCADE.new.duration,
+                      delay: delay + 0.08,
+                      ease: EASE.canon,
+                    }}
+                  />
+                </>
               ) : null}
 
               <motion.circle
