@@ -23,6 +23,7 @@ from story_engine.adapters.outbound.scripted_llm import ScriptedLLM
 from story_engine.adapters.outbound.scripted_oracle import ScriptedBranchOracle
 from story_engine.domain.models.play import Playthrough
 from story_engine.resources.dexter_demo import CAST, FORK_ID
+from story_engine.resources.dexter_demo_script import DEMO_SCRIPT
 from story_engine.services.demo_seed import DEFAULT_NOVEL, demo_branches, seed_canon
 from story_engine.services.playthrough import PlaythroughService
 from story_engine.services.working_memory import WorkingMemory
@@ -45,7 +46,9 @@ def _build(db: Path, novel: Path, *, seed: bool) -> PlaythroughService:
         store=store,
         memory=WorkingMemory(store),
         oracle=ScriptedBranchOracle(demo_branches()),
-        llm=ScriptedLLM(),
+        # Authored beats for the rehearsed path; anything off it composes mechanically, so a
+        # departure from the script is visible rather than plausible.
+        llm=ScriptedLLM(DEMO_SCRIPT),
         prompts=FilePromptStore("prompts"),
     )
 

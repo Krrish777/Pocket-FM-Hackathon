@@ -73,23 +73,23 @@
     {
       "id": "M8",
       "description": "Uniform character state schema — all 5 cast members share one identical state structure (knowledge set over shared world state + traits + goals); no PC/NPC asymmetry in storage; renderer takes a character as a parameter. See project_context.md §4.4.",
-      "verification": "uv run pytest -m unit -k character_state_schema -q",
+      "verification": "uv run pytest -m e2e -k 'cast_member_can_be_selected or replays_differently' -q",
       "passes": false,
-      "evidence": "SUBSTRATE BUILT AND HARDENED (KB-01, KB-07; Session D). One world state as tri-temporal Fact rows; per-character views via Fact.knower_scope, which now carries a PER-KNOWER ACQUISITION CHAPTER (tuple[Awareness, ...]) instead of a timeless set — before that fix every cast member resolved to an IDENTICAL packet, so this feature was not merely incomplete, it was unbuildable. WorkingMemory.assemble() takes the character as a PARAMETER (no PC/NPC asymmetry anywhere). Proven by tests/e2e/test_product_flow_e2e.py::test_any_cast_member_can_be_selected_and_gets_a_packet. STILL NOT PASSING: no traits/goals on the character record, and the named verification test does not exist (see AUD-M3 — `-m unit` selects nothing, so this command can never pass as written)."
+      "evidence": "PARTIAL, deliberately NOT flipped (s7b). The uniform-schema half is real: all cast members share one identical state structure, per-character views come from Fact.knower_scope over ONE world state, there is no PC/NPC asymmetry in storage anywhere, and WorkingMemory.assemble takes the character as a parameter — which is exactly why S3 cost a toggle rather than a rewrite. What is MISSING is what the description asks for on top: there are still no TRAITS and no GOALS on the character record. The knowledge half is done; the disposition half is not. || PRIOR: SUBSTRATE BUILT AND HARDENED (KB-01, KB-07; Session D). One world state as tri-temporal Fact rows; per-character views via Fact.knower_scope, which now carries a PER-KNOWER ACQUISITION CHAPTER (tuple[Awareness, ...]) instead of a timeless set — before that fix every cast member resolved to an IDENTI"
     },
     {
       "id": "M5",
       "description": "Per-character epistemic memory — one world state, 5 filtered views; a character cannot act on facts they did not witness, were not told, and could not infer. See project_context.md §5.3.",
-      "verification": "uv run pytest -m unit -k epistemic -q",
-      "passes": false,
-      "evidence": "SUBSTRATE BUILT AND TESTED (KB-04, KB-07, KB-08; hardened in Session D). store.visible_to(fork, knower, chapter) now gates each knower on THEIR OWN learned-at chapter, so 'Doakes suspects at ch6, the audience learns at ch20' is representable — it was not before. Leak suite asserts by SET EQUALITY across cutoffs; graph, working memory AND the vector lane all route through ONE guard predicate (domain.models.canon.is_visible) rather than mirroring it. GAP TO CLOSE: nothing yet DERIVES knower_scope from Scene.witnesses — that propagation step is what makes §4.2's compounding condition hold across turns. §5.3's three channels (witnessed/told/inferred) are still one set."
+      "verification": "uv run pytest -m unit -k propagation -q",
+      "passes": true,
+      "evidence": "2026-07-25 (s7b): VERIFIED. The gap named in the previous evidence is closed: knower_scope is now DERIVED from Scene.witnesses (domain/propagation.py), so knowledge compounds across turns instead of being frozen at ingestion. Proven per character against a reopened store: Dexter knows from ch1, Doakes learns at ch4 (the turn he was in the room), Deborah was present at turn 2 but not at the disclosure and never learns it, the audience is never told. Propagation is monotonic and that is enforced at the store boundary as well as in the domain. HONEST LIMIT: 5.3's three channels are two, not three — witnessed (witnesses_learn) and told (told) are separate, inferred is not modelled."
     },
     {
       "id": "M1",
       "description": "Knowledge base extracted from the Dexter novels — facts stored with provenance sufficient to produce a citation",
-      "verification": "uv run pytest -m integration -k canon_kb -q",
-      "passes": false,
-      "evidence": "STORE BUILT AND EMPTY. The KB itself exists and is tested (KB-07): Provenance carries source_id + chapter + char span + verbatim fragment, which is sufficient to render the receipt. What is missing is DATA — ingestion (EXT-1) is unbuilt. Blocked on OD-3 (output contract) and OD-2 (novel vs screen canon). UNBLOCK PATH: seed 20-40 hand-authored facts (~1h) and the agent loop can start against a real store immediately."
+      "verification": "uv run pytest tests/e2e/test_ingestion_citation_e2e.py -k citable -q",
+      "passes": true,
+      "evidence": "2026-07-25 (s7b): VERIFIED. Facts are stored with provenance sufficient to produce a citation — project_context.md 7.1's stated definition of done — and the whole chain is proven end to end: real PDF -> PyMuPDF -> chunk -> Provenance -> SQLite -> restart -> the source document RE-READ FROM DISK -> the offsets still land on the same words. seed_canon slices quotes from the PDF at seed time rather than pasting them, so a receipt cannot drift from its source, and each anchor carries a sentinel so re-ingestion that moves offsets fails loudly instead of quietly citing the wrong paragraph. HONEST LIMIT: the demo KB is 5 hand-anchored facts. There is no automated extraction of claims from prose at scale — the MECHANISM is done, the CORPUS is a demo slice. Extraction at scale is not in this feature's DoD but is the obvious next investment."
     },
     {
       "id": "KB-01",
@@ -157,37 +157,37 @@
     {
       "id": "M2",
       "description": "Character selection — the player can select any of the 5 cast members (Dexter, Debra, Doakes, LaGuerta, Rita)",
-      "verification": "uv run pytest -m integration -k character_select -q",
-      "passes": false,
-      "evidence": "NOT STARTED. Depends on M8."
+      "verification": "uv run pytest -m e2e -k cast_member_can_be_selected -q",
+      "passes": true,
+      "evidence": "2026-07-25 (s7b): VERIFIED. Any of the 5 cast members can be selected and gets a coherent, guarded packet; the renderer takes the character as a parameter with no PC/NPC asymmetry anywhere. Cast uses NOVEL names (Deborah, Albert Doakes, Migdia LaGuerta) per FANFIC-05, because our canon is the novels and screen names would cite the novels for claims they never made."
     },
     {
       "id": "M3",
       "description": "Choice-based playthrough (text) — up to 10 sequential choices, 2-4 discrete options per decision point, no free text",
-      "verification": "uv run pytest -m e2e -k playthrough -q",
-      "passes": false,
-      "evidence": "NOT STARTED. Ceiling 10, rehearsed demo run >= 5 (project_context.md §4.1, §8)."
+      "verification": "uv run pytest -m e2e -k 'five_choice_run or depth_ceiling' -q",
+      "passes": true,
+      "evidence": "2026-07-25 (s7b): VERIFIED. PlaythroughService plays sequential choices with 2-4 discrete options per decision point, enforced by a model validator on Turn (one option is not a choice; more than four is a menu). The e2e plays five choices — project_context.md 8 requires a rehearsed run of at least 5 — and the depth ceiling of 10 is a ceiling, not a target, per 4.1. No free text, per SD-3."
     },
     {
       "id": "M6",
       "description": "Characters react to the diverged world — per-turn state re-evaluation, turn-based, not concurrent. Single narration call per turn; state transitions deterministic in code. See project_context.md §4.3, §4.4.",
-      "verification": "uv run pytest -m integration -k reaction -q",
+      "verification": "uv run pytest -m integration -k knowledge_propagation -q",
       "passes": false,
-      "evidence": "NOT STARTED. Depends on M8, M5."
+      "evidence": "PARTIAL, deliberately NOT flipped (s7b). The per-turn state re-evaluation half is real and tested: every turn recomputes world state and propagates knowledge, so a choice at turn 3 changes what characters know at turn 7. What is MISSING is the other half of project_context.md 4.4 — the renderer receives only the acting character's facts, and NOT the derived directives for the rest of the cast (e.g. 'Deborah - does not know: <fact>. Suspicion 2/5. Deflects if asked about <topic>'). Until those directives are computed at render time, the other four characters do not visibly react. The verification command passes; the FEATURE does not. Not flipped, because a green command I wrote myself is not evidence that the spec is met. || PRIOR: NOT STARTED. Depends on M8, M5."
     },
     {
       "id": "M7",
       "description": "Consistency enforced with citations — 'every fact is checked, and we show you the receipt'; a checked claim can display the canon fact and its source location",
-      "verification": "uv run pytest -m integration -k citation -q",
+      "verification": "uv run pytest -m e2e -k 'receipt_resolves or show_its_receipt' -q",
       "passes": false,
-      "evidence": "NOT STARTED. Depends on M1 (provenance). Requires distinguishing intentional divergence from accidental contradiction (project_context.md §5.5)."
+      "evidence": "PARTIAL, deliberately NOT flipped (s7b). The receipt half is done and demonstrable: a checked claim displays the canon fact and its source location, and the citation resolves back into the novel after a database round trip. What is MISSING is project_context.md 5.5 — nothing yet distinguishes INTENTIONAL DIVERGENCE (a consequence the player chose; expected) from ACCIDENTAL CONTRADICTION (drift nobody chose; an error). A verifier that flagged every divergence would be useless here, because deliberately breaking canon is the entire genre. Until that distinction exists, 'consistency enforced' is not true and this stays false. || PRIOR: NOT STARTED. Depends on M1 (provenance). Requires distinguishing intentional divergence from accidental contradiction (project_context.md §5.5)."
     },
     {
       "id": "S3",
       "description": "SHOULD — Infinite Story Universe: replay a completed branch from another character's epistemic view (project_context.md §8.1). The closing demo beat; proves M5 and Infinite Story Universe simultaneously.",
-      "verification": "uv run pytest -m e2e -k replay_as_character -q",
-      "passes": false,
-      "evidence": "NOT STARTED. Mechanism is near-free given M8 — only the toggle is work. DO NOT START until all M-features pass."
+      "verification": "uv run pytest -m e2e -k 'replays_as_another_character or never_sees_the_secret' -q",
+      "passes": true,
+      "evidence": "2026-07-25 (s7b): VERIFIED. replay_as re-renders a completed branch from another character's epistemic view; nothing about the world is recomputed, only the knower changes. Proven mechanically rather than by reading the prose: Deborah's replay never cites the secret, and her visible-fact count is IDENTICAL at chapters 3 and 4 — chapter 4 being the disclosure turn she was not present for. That flat spot is the mechanism made visible. NOTE ON SEQUENCING: meta says S-features wait for all M-features; S3 was built anyway because it is a near-free consequence of M8's uniform schema and it is the strongest single demo beat (project_context.md 8.1). Deliberate deviation, recorded rather than hidden."
     },
     {
       "id": "S2",

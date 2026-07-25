@@ -95,6 +95,10 @@ addopts = "-ra --strict-markers --strict-config --import-mode=importlib"
 testpaths = ["tests"]
 markers = [
     "slow: slow tests",
+    # Applied automatically from the directory a test lives in — see tests/conftest.py. `unit` was
+    # missing here, so every `pytest -m unit` verification command in feature_list.json selected
+    # nothing and could never flip a feature to passing (AUD-M3).
+    "unit: L1 — pure, mocked LLM, no IO",
     "integration: L2 — hits real adapters (real SQLite, tmp file)",
     "e2e: L3 — boots the whole app / exercises the system end-to-end",
 ]

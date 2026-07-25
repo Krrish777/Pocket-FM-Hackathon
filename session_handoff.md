@@ -63,25 +63,65 @@ headline claim. `allow_single_chapter=True` is the explicit opt-in.
 **Rejected:** upstream's retrieval path. `vector_db.search(query_vector, top_k)` applies no epistemic
 filter, so wiring it in would create a second unguarded read path beside `store.visible_to()`.
 
+### Then the demo got built (session 7b, same day)
+**`uv run story-engine play --auto --turns 5 --replay-as deborah`** plays five choices against the
+real novel and closes on the replay beat. **No API key needed** — beats are replayed from
+`ScriptedLLM`, so a stage demo cannot die to a timeout or an unlucky sample.
+
+- **PROP-01 — knowledge propagation.** `knower_scope` is derived from `Scene.witnesses`. The
+  invariant: **monotonic** — may add a knower or move an acquisition earlier, never remove or delay
+  one; enforced in the domain *and again* at the store boundary, because losing a knower is silent at
+  read time. Two traps, both tested: an **untracked fact stays untracked** (`knower_scope is None`
+  means visible-to-all, so attaching witnesses would *narrow* it — the inverse of learning), and
+  **earliest acquisition wins**. Learning is not routed through `supersede`: the claim didn't change.
+- **PLAY-01 — the turn loop.** `PlaythroughService`. Exactly one model call per turn and it decides
+  nothing; every transition is computed in code first. `replay_as` is a re-render, not a rewrite.
+- **DEMO-01 — playable.** Canon seeded from the PDF with quotes **sliced at seed time**, each anchor
+  carrying a sentinel so drifted offsets fail loudly rather than citing the wrong paragraph.
+- **The prose is authored** (`resources/dexter_demo_script.py`), keyed by
+  `{knower}:{chapter}:{visible_fact_count}` — the key names *who is looking and how much they may
+  see*, which is the axis the demo turns on. A test asserts all 12 beats are covered, because a gap
+  wouldn't raise: it would silently degrade the one beat nobody rehearsed.
+- **T10 — the harness bug is fixed.** `tests/conftest.py` now applies `unit`/`integration`/`e2e` from
+  the directory a test lives in, and `unit` is registered. Before this, every `pytest -m unit`
+  verification in `feature_list.json` selected **nothing** and no product feature could ever flip.
+
+### Two defects found by *running* it, not reading it
+1. **The narrator recited the player's own choices.** The prompt renders known facts and upcoming
+   options as the same `- ` bullets, so the fallback's line scan read the menu as memory — directly
+   under a prompt instruction never to name them. Fixed by scoping the scan to the knowledge block.
+2. **The table of contents became chapter 1.** The real novel opens with "Chapter 1 thru Chapter 27",
+   which matched the heading pattern and shifted **every** chapter by one. The guard gates on chapter,
+   so that quietly moved every reveal boundary in the book — while all synthetic fixtures stayed green,
+   because none of them had a table of contents.
+
 ### State
-`make check` **GREEN**. Suite **447 → 479** (32 new: 20 chunking, 10 PDF reader, 2 E2E). INGEST-01 added
-to `feature_list.json` with `passes: true`, earned by its own verification command. New dep: `pymupdf`,
-with a per-module mypy override (it ships no types) confined to the one adapter that imports it.
+`make check` **GREEN**, **487 tests**. `feature_list.json`: **32/40 passing**.
+**M1, M2, M3, M5, S3 flipped to true**, each by its own re-pointed verification command.
+
+**M6, M7, M8 deliberately left false even though their commands now pass** — a green command I wrote
+myself is not evidence the spec is met:
+- **M8** — uniform schema is real; **traits and goals still do not exist** on the character record.
+- **M6** — per-turn re-evaluation works, but the renderer never receives the *derived directives* for
+  the other cast (§4.4), so the other four don't visibly react.
+- **M7** — the receipt works; **§5.5's verifier does not exist**, so nothing separates intentional
+  divergence from accidental contradiction. "Consistency enforced" is not yet true.
 
 ### Next step
-**T1 — the LLM adapter.** Nothing in this repo can render a sentence: only `StubLLM` exists and
-`prompts/` is a lone README. It is the widest-reach unblocker on the board. Pull in
-**`567-labs/instructor`** with it (already placeheld in `pyproject.toml:17`) so model output is validated
-at the boundary with Pydantic per `.claude/rules/llm-storytelling.md` §5.
+1. **M4 / T5 — bind the Branch Oracle to canon moments.** The biggest *honesty* gap: options come
+   from an authored table (`resources/dexter_demo.py`), not from mined fan fiction. Three of ten carry
+   a real `source_work_id`, but the labels are authored. The pitch claims otherwise.
+2. **M6's derived directives** — the cheapest way to make the other four characters visibly react.
+3. **T9 — the frontend.** The demo is terminal-only; its `CanonClient` still targets the superseded
+   single-flip contract while the backend now serves a turn loop.
 
-Then **T3 — knowledge propagation** (`Scene.witnesses` → `knower_scope`), which is the load-bearing task
-for the entire demo.
-
-### Still blocking (`demo.md` §7)
-- **D-1 — where is the Dexter novel PDF?** Not in the repo; `data/` holds only `.gitkeep`. The reader is
-  built and tested, so this is now a five-minute task *once the file exists*.
-- **D-2 — snap-to-branch vs true free-form.** Recommend snap-to-branch.
-- **D-3 — novel vs screen canon** (OD-2), still open.
+### Still open
+- **D-2 — snap-to-branch vs true free-form.** Recommend snap-to-branch. Unchanged.
+- **D-3 — novel vs screen canon** (OD-2). The demo uses **novel** names; fan fiction is mostly screen.
+- **A real embedder.** Measured on the full novel: verbatim recall@5 8/8, but natural-language
+  retrieval is near-random, exactly as `HashingEmbedder`'s own docstring predicts. The guard held
+  perfectly (0 leaked of 20 hits at ch3). `fastembed` behind `EmbedderPort` is the fix.
+- **D-1 is CLOSED** — the PDF is at `data/external/Darkly-Dreaming-Dexter-1.pdf`.
 
 ---
 
