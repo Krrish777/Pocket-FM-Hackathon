@@ -6,13 +6,15 @@ import { ShieldCheck, TriangleAlert } from "lucide-react";
 import { t, ui, type Locale, type VerifierResult } from "@/lib/mockData";
 
 /**
- * VerifierBadge — DESIGN.md §6.9.
+ * VerifierBadge — Output/Defect redesign (same pattern as Shelf/Timeline).
  *
  * Both states matter: the green one is the everyday payoff, the amber one is
  * the falsifiable proof shown in Planted-Defect Mode. The flagged state shakes
  * once on entrance so a room watching a projector cannot miss it.
  *
- * Alongside the Ripple Map, this is the only place `--state-*` colours are legal.
+ * Alongside the Ripple Map, this is the only place `--state-*` colours are
+ * legal — that reservation is semantic, not decorative, so the redesign keeps
+ * the colours and only changes shape (pill / rounded card).
  */
 export function VerifierBadge({
   verifier,
@@ -26,7 +28,7 @@ export function VerifierBadge({
       <div
         data-testid="verifier-badge"
         data-status="ok"
-        className="border-state-hold inline-flex flex-col gap-2 border px-4 py-3"
+        className="border-state-hold inline-flex flex-col gap-2 rounded-2xl border px-5 py-3"
       >
         <span className="flex items-center gap-2">
           <ShieldCheck size={16} className="text-state-hold" aria-hidden="true" />
@@ -50,7 +52,7 @@ export function VerifierBadge({
       initial={{ x: 0 }}
       animate={{ x: [0, -4, 4, -3, 3, 0] }}
       transition={{ duration: 0.4, ease: "easeInOut" }}
-      className="border-state-invalid inline-flex flex-col gap-3 border px-4 py-3"
+      className="border-state-invalid inline-flex flex-col gap-3 rounded-2xl border px-5 py-4"
       style={{ backgroundColor: "rgb(209 73 91 / 0.06)" }}
     >
       <span className="flex items-center gap-2">
