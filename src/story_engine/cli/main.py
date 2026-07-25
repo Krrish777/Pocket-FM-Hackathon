@@ -23,6 +23,7 @@ from story_engine.adapters.outbound.wiki.jsonl_index_sink import (
     JsonlWikiIndexSink,
 )
 from story_engine.bootstrap import build_canon_ingest_service, build_container
+from story_engine.cli.ingest import register as register_ingest
 from story_engine.cli.play import register as register_play
 from story_engine.domain.models.wiki_index import WikiEntityKind
 from story_engine.ports.fanfic_source import FanficSourcePort
@@ -323,6 +324,7 @@ def reconcile(
 
 
 register_play(app)
+register_ingest(app)
 
 
 def main() -> None:
