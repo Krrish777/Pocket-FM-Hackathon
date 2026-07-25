@@ -62,3 +62,22 @@ class FactRow(SQLModel, table=True):
     # / `datetime.fromisoformat()` preserve the offset exactly.
     recorded_at: str
     superseded_at: str | None = Field(default=None)
+
+
+class VectorRow(SQLModel, table=True):
+    """Storage row for a semantic-recall embedding — the vector store's only table.
+
+    Denormalized copy of `revealed_at`/`knower_scope` from the owning fact so `search` can
+    apply the spoiler guard without a join back to `FactRow`. Same NULL-vs-empty-list
+    semantics as `FactRow.knower_scope`: NULL means NOT TRACKED (visible to everyone).
+    """
+
+    __tablename__ = "canon_vector"
+
+    id: int | None = Field(default=None, primary_key=True)
+    fact_id: str = Field(index=True)
+    fork_id: str = Field(index=True)
+    text: str
+    vector: list[float] = Field(default_factory=list, sa_column=Column(JSON))
+    revealed_at: int | None = Field(default=None, index=True)
+    knower_scope: list[str] | None = Field(default=None, sa_column=Column(JSON))
