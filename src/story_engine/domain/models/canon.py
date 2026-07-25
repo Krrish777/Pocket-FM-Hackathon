@@ -16,7 +16,19 @@ from datetime import datetime
 from pydantic import Field, model_validator
 
 from story_engine.domain.base import DomainModel
-from story_engine.domain.enums import AssertionMode, FactStatus, SourceType
+from story_engine.domain.enums import (
+    AssertionMode,
+    CommitmentState,
+    CommitmentType,
+    EntityStatus,
+    EntityType,
+    FactStatus,
+    FlagSeverity,
+    InvariantKind,
+    PresenceGrade,
+    SourceType,
+    VerificationLane,
+)
 
 type ChapterIndex = int
 """1-based position in the telling. Ordering only — it carries no duration."""
@@ -214,4 +226,120 @@ class Fact(DomainModel):
     def _invalidated_facts_record_supersession(self) -> "Fact":
         if self.status is FactStatus.INVALIDATED and self.superseded_at is None:
             raise ValueError("an INVALIDATED fact must record superseded_at")
+        return self
+
+
+_FORWARD_TRANSITIONS: dict[CommitmentState, frozenset[CommitmentState]] = {
+    CommitmentState.PLANTED: frozenset(
+        {CommitmentState.TRIGGERED, CommitmentState.BROKEN}
+    ),
+    CommitmentState.TRIGGERED: frozenset(
+        {CommitmentState.PAID_OFF, CommitmentState.BROKEN}
+    ),
+    CommitmentState.PAID_OFF: frozenset(),
+    CommitmentState.BROKEN: frozenset(),
+}
+
+
+class CanonEntity(DomainModel):
+    """A persistent thing the story is about, with every surface form it answers to.
+
+    Named `CanonEntity` rather than `Entity` to stay unambiguous alongside the STARTER
+    `CharacterState` in `memory.py` until that migration happens.
+    """
+
+    id: str = Field(min_length=1)
+    fork_id: str = Field(min_length=1)
+    type: EntityType
+    canonical_name: str = Field(min_length=1)
+    aliases: tuple[str, ...] = ()
+    status: EntityStatus = EntityStatus.ACTIVE
+
+    def matches_name(self, name: str) -> bool:
+        """Whether a surface form refers to this entity, ignoring case and padding."""
+        needle = name.strip().casefold()
+        if needle == self.canonical_name.casefold():
+            return True
+        return any(needle == alias.casefold() for alias in self.aliases)
+
+
+class Presence(DomainModel):
+    """How present one entity is in one scene."""
+
+    entity_id: str = Field(min_length=1)
+    grade: PresenceGrade
+
+
+class Scene(DomainModel):
+    """A unit of telling, and the roster that decides who could have witnessed it.
+
+    The roster is the cheapest sound route to per-character knowledge: presence confers
+    it, being merely referenced does not.
+    """
+
+    id: str = Field(min_length=1)
+    fork_id: str = Field(min_length=1)
+    chapter: ChapterIndex = Field(ge=1)
+    order_in_chapter: int = Field(ge=0)
+    summary: str = Field(min_length=1)
+    roster: tuple[Presence, ...] = ()
+
+    @property
+    def witnesses(self) -> frozenset[str]:
+        """Entities present enough to have learned what happened here."""
+        return frozenset(
+            p.entity_id for p in self.roster if p.grade is not PresenceGrade.REFERENCED
+        )
+
+
+class Commitment(DomainModel):
+    """A narrative debt, tracked from planting to discharge.
+
+    Dropped setups are invisible to similarity search — nothing ever *asks* about an
+    unfired gun — but trivial to a lifecycle filter.
+    """
+
+    id: str = Field(min_length=1)
+    fork_id: str = Field(min_length=1)
+    type: CommitmentType
+    planted_at: ChapterIndex = Field(ge=1)
+    state: CommitmentState = CommitmentState.PLANTED
+    payoff_at: ChapterIndex | None = Field(default=None, ge=1)
+    entity_ids: tuple[str, ...] = ()
+    provenance: Provenance
+
+    @property
+    def is_open(self) -> bool:
+        """True while the story still owes this debt."""
+        return self.state in {CommitmentState.PLANTED, CommitmentState.TRIGGERED}
+
+    def can_transition_to(self, state: CommitmentState) -> bool:
+        """Whether moving to `state` is legal — "paid off before planted" is not."""
+        return state in _FORWARD_TRANSITIONS[self.state]
+
+    @model_validator(mode="after")
+    def _payoff_is_consistent(self) -> "Commitment":
+        if self.state is CommitmentState.PAID_OFF and self.payoff_at is None:
+            raise ValueError("a PAID_OFF commitment must record payoff_at")
+        if self.payoff_at is not None and self.payoff_at < self.planted_at:
+            raise ValueError("payoff_at must not precede planted_at")
+        return self
+
+
+class Flag(DomainModel):
+    """A verifier finding, carrying the evidence that makes it actionable."""
+
+    id: str = Field(min_length=1)
+    invariant: InvariantKind
+    severity: FlagSeverity
+    lane: VerificationLane
+    draft_span: str = Field(min_length=1)
+    cited_fact_ids: tuple[str, ...] = ()
+    citation_text: str = Field(min_length=1)
+    suggested_action: str | None = None
+
+    @model_validator(mode="after")
+    def _hard_lane_flags_cite_evidence(self) -> "Flag":
+        if self.lane is VerificationLane.HARD and not self.cited_fact_ids:
+            raise ValueError("a HARD-lane flag must cite at least one fact")
         return self

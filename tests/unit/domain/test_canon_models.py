@@ -8,12 +8,28 @@ from pydantic import ValidationError
 from story_engine.domain.enums import (
     AssertionMode,
     CommitmentState,
+    CommitmentType,
     EntityStatus,
+    EntityType,
     FactStatus,
+    FlagSeverity,
+    InvariantKind,
     PresenceGrade,
     SourceType,
+    VerificationLane,
 )
-from story_engine.domain.models.canon import AUDIENCE, Fact, Fork, Provenance, Source
+from story_engine.domain.models.canon import (
+    AUDIENCE,
+    CanonEntity,
+    Commitment,
+    Fact,
+    Flag,
+    Fork,
+    Presence,
+    Provenance,
+    Scene,
+    Source,
+)
 
 
 def test_kernel_enums_are_str_enums() -> None:
@@ -214,3 +230,103 @@ def test_foreshadowed_fact_is_revealed_before_it_is_true() -> None:
     """Legal, not an error — this is what foreshadowing IS."""
     assert _fact(revealed_at=2, valid_from=40).is_foreshadowed is True
     assert _fact(revealed_at=40, valid_from=40).is_foreshadowed is False
+
+
+def test_entity_matches_any_of_its_aliases_case_insensitively() -> None:
+    """One node per identity: "the Stranger" and "the King" must resolve together."""
+    entity = CanonEntity(
+        id="e-1",
+        fork_id="canon",
+        type=EntityType.CHARACTER,
+        canonical_name="Aldric",
+        aliases=("the Stranger", "the King"),
+        status=EntityStatus.ACTIVE,
+    )
+    assert entity.matches_name("aldric") is True
+    assert entity.matches_name("The Stranger") is True
+    assert entity.matches_name("Moriarty") is False
+
+
+def test_scene_witnesses_exclude_merely_referenced_entities() -> None:
+    """Being talked about is not being present — it must not confer knowledge."""
+    scene = Scene(
+        id="s-1",
+        fork_id="canon",
+        chapter=3,
+        order_in_chapter=1,
+        summary="Holmes examines the ash while Watson watches.",
+        roster=(
+            Presence(entity_id="holmes", grade=PresenceGrade.ACTIVE),
+            Presence(entity_id="watson", grade=PresenceGrade.SILENT),
+            Presence(entity_id="moriarty", grade=PresenceGrade.REFERENCED),
+        ),
+    )
+    assert scene.witnesses == frozenset({"holmes", "watson"})
+
+
+def _commitment(**overrides: object) -> Commitment:
+    defaults: dict[str, object] = {
+        "id": "c-1",
+        "fork_id": "canon",
+        "type": CommitmentType.FORESHADOW,
+        "planted_at": 3,
+        "state": CommitmentState.PLANTED,
+        "payoff_at": None,
+        "entity_ids": ("holmes",),
+        "provenance": Provenance(
+            source_id="src-1", chapter=3, char_start=0, char_end=9, quote="a scratch"
+        ),
+    }
+    return Commitment(**(defaults | overrides))  # type: ignore[arg-type]
+
+
+def test_commitment_allows_only_forward_transitions() -> None:
+    planted = _commitment(state=CommitmentState.PLANTED)
+    assert planted.can_transition_to(CommitmentState.TRIGGERED) is True
+    assert planted.can_transition_to(CommitmentState.BROKEN) is True
+    assert planted.can_transition_to(CommitmentState.PAID_OFF) is False
+
+
+def test_paid_off_commitment_is_terminal() -> None:
+    paid = _commitment(state=CommitmentState.PAID_OFF, payoff_at=40)
+    assert paid.can_transition_to(CommitmentState.TRIGGERED) is False
+    assert paid.is_open is False
+
+
+def test_paid_off_commitment_must_record_where_it_paid_off() -> None:
+    with pytest.raises(ValidationError):
+        _commitment(state=CommitmentState.PAID_OFF, payoff_at=None)
+
+
+def test_payoff_must_not_precede_planting() -> None:
+    with pytest.raises(ValidationError):
+        _commitment(state=CommitmentState.PAID_OFF, planted_at=10, payoff_at=4)
+
+
+def test_hard_lane_flag_must_cite_at_least_one_fact() -> None:
+    """An uncited flag is an opinion; a cited flag is evidence."""
+    with pytest.raises(ValidationError):
+        Flag(
+            id="fl-1",
+            invariant=InvariantKind.MORTALITY,
+            severity=FlagSeverity.BLOCKING,
+            lane=VerificationLane.HARD,
+            draft_span="Kael spoke again.",
+            cited_fact_ids=(),
+            citation_text="draft says Kael speaks; canon: died @ ep 181",
+            suggested_action=None,
+        )
+
+
+def test_flag_renders_a_citation() -> None:
+    flag = Flag(
+        id="fl-2",
+        invariant=InvariantKind.MORTALITY,
+        severity=FlagSeverity.BLOCKING,
+        lane=VerificationLane.HARD,
+        draft_span="Kael spoke again.",
+        cited_fact_ids=("f-9",),
+        citation_text="draft says Kael speaks; canon: died @ ep 181 s3",
+        suggested_action="invalidate or depict a resurrection",
+    )
+    assert "ep 181" in flag.citation_text
