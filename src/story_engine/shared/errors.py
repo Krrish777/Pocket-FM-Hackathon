@@ -52,3 +52,16 @@ class PromptError(StoryEngineError):
     """A prompt template was missing, malformed, or given the wrong variables."""
 
     code = "prompt_error"
+
+
+# --- corpus harvesting -----------------------------------------------------------------------
+class HarvestError(StoryEngineError):
+    """Building a corpus from an external source failed."""
+
+    code = "harvest_error"
+
+
+class SourceUnavailableError(HarvestError):
+    """A fan-fiction host was unreachable, rate-limited, or returned an unusable payload."""
+
+    code = "source_unavailable"

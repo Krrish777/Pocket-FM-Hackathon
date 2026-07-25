@@ -21,6 +21,15 @@ make setup     # create env + install deps (uv)
 make test      # pytest
 make check     # FULL gate: ruff check + ruff format --check + mypy + pytest  ← "done" means this passes
 ```
+Check the gate by its **exit code**, never by reading filtered output — piping `make check` into
+`grep`/`tail`/`head` returns the *filter's* status, so a red gate reads as green.
+
+Fan-fiction ingestion (EXT-1) CLI — `--kind` is effectively required, or "Titanic" resolves to the ship:
+```bash
+uv run story-engine harvest    "Dexter" --kind novel --show-branches   # corpus + branch points
+uv run story-engine branches   "Titanic" --kind movie                  # Branch Oracle only
+uv run story-engine wiki-index "Dexter"                                # entity vocab + canon basis
+```
 
 ## Hard Constraints (red lines — never cross)
 1. Type-hint every public signature — `list[str]`, `X | None` (never `Optional`/`List`).
@@ -65,6 +74,10 @@ make check     # FULL gate: ruff check + ruff format --check + mypy + pytest  �
 - Python → `.claude/rules/python-style.md` + `.claude/rules/python-design.md`; persistence → `.claude/rules/persistence.md`
 - Folder layout / architecture → `.claude/rules/structure.md`; LLM/prompts → `.claude/rules/llm-storytelling.md` + `.claude/rules/prompts.md`; testing → `.claude/rules/testing.md`
 - External dependency docs to consult (upstream `llms.txt` per tech-stack item) → `reference/llms.txt`
+- **EXT-1 fan-fiction ingestion (the Branch Oracle) → `docs/EXT-1-scraper-output-contract.md`** — the on-disk
+  contract the Canon Kernel consumes (corpus schema 1.2 + wiki-index schema 1.0). Design rationale and every
+  measured threshold: `docs/superpowers/specs/2026-07-25-fanfic-harvest-design.md`. **The code is
+  authoritative; a mismatch with the contract doc is a bug in the doc.**
 - Research provenance (what the rules were distilled FROM) → `research/README.md`
 - Harness methodology → `Harness-Engineering/Harness-Engineering-Hub.md`
 
