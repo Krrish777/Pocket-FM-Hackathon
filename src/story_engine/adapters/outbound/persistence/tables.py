@@ -23,3 +23,42 @@ class EpisodeSummaryRow(SQLModel, table=True):
     )
     events: list[str] = Field(default_factory=list, sa_column=Column(JSON))
     emotional_beat: str | None = Field(default=None)
+
+
+class FactRow(SQLModel, table=True):
+    """Storage row for `domain.models.Fact` — the tri-temporal canon record.
+
+    Enums are stored as their string values (they are `StrEnum`, so this is lossless).
+    `knower_scope` is a JSON list or SQL NULL: NULL means NOT TRACKED, which is a different
+    state from "tracked but empty" — the domain rejects the latter, so conflating them would
+    surface as a validation error on read.
+    """
+
+    __tablename__ = "canon_fact"
+
+    id: str = Field(primary_key=True)
+    fork_id: str = Field(index=True)
+    subject_id: str = Field(index=True)
+    predicate: str = Field(index=True)
+    object_id: str | None = Field(default=None)
+    object_literal: str | None = Field(default=None)
+
+    valid_from: int = Field(index=True)
+    valid_to: int | None = Field(default=None)
+    revealed_at: int | None = Field(default=None, index=True)
+
+    assertion_mode: str
+    attributed_to: str | None = Field(default=None)
+
+    knower_scope: list[str] | None = Field(default=None, sa_column=Column(JSON))
+    provenance: dict[str, object] = Field(default_factory=dict, sa_column=Column(JSON))
+    confidence: float
+    tier: int
+    status: str = Field(index=True)
+
+    # Stored as ISO-8601 text, not a native DateTime column: SQLite has no timezone type, so
+    # SQLAlchemy's DateTime silently returns a naive datetime on read and drops `tzinfo` —
+    # a lossy round-trip the mapping-round-trip test exists to catch. `datetime.isoformat()`
+    # / `datetime.fromisoformat()` preserve the offset exactly.
+    recorded_at: str
+    superseded_at: str | None = Field(default=None)
