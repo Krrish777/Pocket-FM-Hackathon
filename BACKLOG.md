@@ -85,6 +85,29 @@
 - [x] **FANFIC-04** Branch Oracle - canon decision points with 2-4 player-facing options. DONE.
 - [x] **FANFIC-05** OD-2 novel-vs-screen canon discriminator (wiki entity vocabulary). DONE.
 - [x] **FANFIC-06** EXT-1 output contract written down, closing OD-3. DONE.
+- [x] **FANFIC-07** IV&V audit — 4 defects found and fixed (prose-deleting boilerplate regex, silent
+      chapter truncation, sink/CLI artifact divergence, script/style leakage). Suite 237→286.
+      Corpus schema 1.1→1.2. DONE.
+
+### IV&V follow-ups (session 6) — deliberately NOT fixed; scraper is closed for hackathon purposes
+> Ordered by risk. None of these block the demo. Do not start any of them before the M-features.
+
+- [ ] **F-7 — prose-gate thresholds are borrowed from the wrong problem.** `words >= 500` AND
+      `quotes_per_1k >= 5` were measured for *Reddit prose-vs-discussion*, then applied per-chapter to
+      Wattpad, where that problem doesn't exist. Rejected 7 chapters across a 4-work harvest (~14%),
+      including one work's opening chapter. **Needs a decision, not a fix** — and it is tunable without
+      touching code: `--min-words 200 --min-quotes-per-1k 0`. Note the current gate systematically drops
+      dialogue-free introspective chapters, which is a poor fit for Dexter's first-person interiority.
+- [ ] **`alias_expander.py` (306 lines) has ZERO tests** — `--kind` disambiguation is load-bearing
+      (without it "Dexter" resolves to a warship) and completely unverified.
+- [ ] **Wattpad `search()` untested** — round-robin across aliases, pagination exhaustion, and the
+      "page returns only already-seen ids" case, which can burn requests without growing the result set.
+- [ ] **`get_with_retry` ignores `Retry-After` on 429**, and `_pause()` is skipped on the failure path,
+      so a run that hits errors is *less* polite than one that succeeds. Politeness, not correctness.
+- [ ] **Tell the KB team about `support: 1`.** Every premise group in the real Dexter harvest has
+      `size: 1` — the "N independent humans branched off one canon node" story does not hold at this
+      corpus scale. Code assuming multi-member groups will silently get empty results.
+
 - [ ] **Link branches to canon MOMENTS** - blocked on the Canon Kernel exposing a resolvable scene id
       (`(chapter, order_in_chapter)` or a documented `Scene.id`). Largest remaining integration gap; see
       `docs/EXT-1-scraper-output-contract.md` section 6. **NEXT.**

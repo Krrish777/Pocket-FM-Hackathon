@@ -76,7 +76,7 @@ uv run story-engine wiki-index "Dexter"                                # entity 
 - Folder layout / architecture → `.claude/rules/structure.md`; LLM/prompts → `.claude/rules/llm-storytelling.md` + `.claude/rules/prompts.md`; testing → `.claude/rules/testing.md`
 - External dependency docs to consult (upstream `llms.txt` per tech-stack item) → `reference/llms.txt`
 - **EXT-1 fan-fiction ingestion (the Branch Oracle) → `docs/EXT-1-scraper-output-contract.md`** — the on-disk
-  contract the Canon Kernel consumes (corpus schema 1.1 + wiki-index schema 1.0). Design rationale and every
+  contract the Canon Kernel consumes (corpus schema 1.2 + wiki-index schema 1.0). Design rationale and every
   measured threshold: `docs/superpowers/specs/2026-07-25-fanfic-harvest-design.md`. **The code is
   authoritative; a mismatch with the contract doc is a bug in the doc.**
 - Research provenance (what the rules were distilled FROM) → `research/README.md`

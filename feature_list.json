@@ -190,6 +190,13 @@
       "evidence": "2026-07-25 (s5): docs/EXT-1-scraper-output-contract.md answers all four \u00a79 checkboxes, documents corpus schema 1.1 + wiki-index schema 1.0 field-by-field, states guarantees AND non-guarantees, and records the one two-way dependency: EXT-1 cannot cite a canon SCENE until the Canon Kernel exposes a resolvable moment id."
     },
     {
+      "id": "FANFIC-07",
+      "description": "IV&V: the scraper's reliability layer, truncation provenance, and boilerplate safety are covered by tests that would fail if the behaviour regressed",
+      "verification": "uv run pytest tests/unit/adapters/test_http_util.py tests/unit/adapters/test_jsonl_sink.py tests/unit/services/test_fanfic_harvest.py tests/unit/domain/test_fanfic_quality.py -q",
+      "passes": true,
+      "evidence": "2026-07-25 (s6): independent verification pass, posture 'assume the scraper is incorrect until evidence proves otherwise'. Found and fixed 4 defects, each proven by executing code: (1) strip_boilerplate deleted real narration - 5/5 realistic prose lines destroyed, e.g. 'Like a knife, the cold cut through him.'; (2) chapters silently dropped leaving works truncated with no marker - live wattpad:864850 shipped starting at CHAPTER 2 - fixed via corpus schema 1.1->1.2 adding chapters_dropped{non_prose,duplicate,is_partial}; (3) JsonlCorpusSink recomputed branch points with its own default so --max-branch-options 2 printed 2 options but wrote 3 to disk - fixed by threading the ceiling through CorpusSinkPort; (4) <script>/<style> bodies leaked into prose, caught by a new test. Suite 237->286: new test_http_util.py (22 tests) covers the retry engine which previously had ZERO tests; killed a false positive (test_respects_max_stories asserted len<=2, also satisfied by returning zero). Root cause of the blind spot: fixtures defaulted to chapters=1, making intra-work dedup structurally unobservable. make check green, 5 consecutive stable runs incl. 2 randomized."
+    },
+    {
       "id": "HARDEN-05",
       "description": "Author local sqlmodel/pytest/thin-pydantic skills modeled on the FastAPI skill structure",
       "verification": "test -e .claude/skills/sqlmodel/SKILL.md && test -e .claude/skills/pytest/SKILL.md",

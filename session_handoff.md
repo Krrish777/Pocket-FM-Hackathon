@@ -1,8 +1,87 @@
 # Session Handoff
 
 > The single per-session **clock-out** note. At session start read this first, then `PROGRESS.md` and
-> `DECISIONS.md`. Two sessions ran in parallel on 2026-07-25 and both clocked out here: **Session A**
-> (product definition) and **Session B** (EXT-1 scraper). **Session B is the most recent.**
+> `DECISIONS.md`. Three sessions have clocked out here: **Session A** (product definition), **Session B**
+> (EXT-1 scraper build), and **Session C** (EXT-1 IV&V audit). **Session C is the most recent.**
+
+---
+
+## Session C — 2026-07-25 (IV&V audit of the scraper → 4 bugs found and fixed)
+
+**Framing:** An **independent verification & validation pass** over the EXT-1 scraper, run under the
+explicit posture *"assume the scraper is incorrect until evidence proves otherwise."* This was a
+**verification session, not a feature session** — no new scraper capability was added, by design.
+Four real defects were found, proven with executable probes, and fixed.
+
+`make check` is **GREEN** (exit 0, **286 passed**, up from 237). Stable across 5 consecutive runs
+(3 sequential + 2 randomized order). All 9 feature verification commands re-run: **all PASS**.
+
+### The one thing to read next
+**`docs/EXT-1-scraper-output-contract.md`** — now corpus schema **1.2**. The new `chapters_dropped`
+block is the change that matters to the knowledge-base consumer.
+
+### What I did
+**Audited first, fixed second.** Read the contract + design spec, mapped every module to its tests, then
+ran the real pipeline and inspected the artifact rather than trusting the docs or the green gate.
+
+**Four defects — each proven by running code, not by reading it:**
+
+1. **`strip_boilerplate` was deleting real narrative prose.** Every call-to-action word is also an
+   ordinary English verb, and the patterns matched any line merely *starting* with one. Five realistic
+   lines destroyed, e.g. `"Like a knife, the cold cut through him."` / `"Follow the blood, he thought."`.
+   The `read on <host>` pattern was unanchored, so `"He read on Wattpad about the case"` also died.
+   **This was corrupting corpus text** — the knowledge base's direct input. 35 tests covered this module
+   and none fed prose starting with a common verb.
+2. **Chapters were silently dropped, leaving works truncated with no marker.** Live evidence:
+   `wattpad:864850` shipped **starting at chapter 2** (chapter 1 gone); `390229723` had gaps at indices
+   6 and 11. Index gaps are indistinguishable from an author's own numbering, so a consumer could not
+   tell a truncated work from a complete one.
+3. **The on-disk manifest contradicted the CLI.** `jsonl_sink.py` recomputed branch points with its own
+   default ceiling, ignoring `--max-branch-options`. Proven: the console printed 2 options while the
+   artifact — what the KB actually ingests — contained 3.
+4. **`<script>`/`<style>` bodies leaked into prose.** Found by a *new* test: stripping tags leaves the
+   *contents* of those elements behind as if it were story text.
+
+**Fixes (all landed, gate green):**
+
+| # | Fix | Files |
+|---|---|---|
+| 1 | CTA patterns now require `please` or a second reader-directed marker; `read on <host>` requires an explicit continuation object (`the rest`/`more`) | `domain/fanfic_quality.py` |
+| 2 | `chapters_dropped {non_prose, duplicate, is_partial}` per record; **schema 1.1 → 1.2** (additive) | `models/fanfic.py`, `services/fanfic_harvest.py`, `jsonl_sink.py` |
+| 3 | `max_branch_options` threaded through `CorpusSinkPort` — the sink no longer recomputes | `ports/corpus_sink.py`, `jsonl_sink.py`, `services/fanfic_harvest.py` |
+| 4 | script/style/comment bodies removed before tag stripping | `fanfic/http_util.py` |
+
+**Test suite: 237 → 286.**
+- **New `tests/unit/adapters/test_http_util.py` (22 tests).** The retry engine — every scraper request
+  goes through it — had **zero** tests. Now covers retryable vs non-retryable statuses, attempt
+  exhaustion, network-error typing, and exponential backoff.
+- **Fixed a false positive:** `test_respects_max_stories` asserted `len(stories) <= 2`, which a harvester
+  returning **zero** stories also satisfies. Now `== 2`.
+- **New classes:** `TestMultiChapterIntegrity`, `TestMultiSourceResilience`, `TestTruncationProvenance`,
+  `TestBoilerplateDoesNotEatProse`.
+- **Root cause of the blind spot:** service fixtures defaulted to `chapters=1` per work, making an entire
+  bug class *structurally unreachable* by the suite. Real works are multi-chapter — the live Dexter
+  corpus is 43 chapters across 4 works.
+
+### State
+- **Committed:** `2a25444` "regular updates" (16 files, +715/−145). Includes this session's work **and**
+  5 files staged by a prior session (`AGENTS.md`, `CLAUDE.md`, `feature_list.json`, `init.sh`,
+  the previous `session_handoff.md`).
+- **Corpus schema is now 1.2.** 1.0/1.1 readers are unaffected — the change is additive.
+- Live re-harvest confirms the fix end-to-end:
+  `864850 → {'non_prose': 1, 'duplicate': 0, 'is_partial': True}`.
+
+### Next step (how to resume)
+1. `./init.sh` — confirms the gate; now also prints the corpus schema version + local corpora.
+2. **The scraper is DONE for hackathon purposes. Do not invest further here.** It produces the 2–4 choice
+   set the playable layer needs. Move to product features — **M8 first**.
+3. **Hand to the KB team (one message, saves them an afternoon):** every `premise_group` in the real
+   Dexter harvest has `size: 1` and every branch point `support: 1`. The *"N independent humans branched
+   off the same canon node"* story does **not** hold at this corpus scale — one author per decision
+   point. The demo is unaffected (canon + one alternate = a legal choice), but code written assuming
+   multi-member groups will get empty results.
+4. **Open, deliberately not fixed** — see `BACKLOG.md` IV&V section: prose-gate thresholds (F-7),
+   `alias_expander.py` still at 0 tests, Wattpad `search()` pagination untested, `Retry-After` ignored.
 
 ---
 

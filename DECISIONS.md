@@ -340,3 +340,51 @@
 - **Rejected:** `action=parse` HTML (infobox label/value pairing depends on skin CSS, whereas wikitext gives
   named parameters that parse straight into typed relationships); emitting the wiki as the authoritative canon
   KB (section 6.1 says the KB comes from the novels - doing that would BE the corruption path).
+
+## 2026-07-25 (session 6, IV&V): Fix the source during the test phase, rather than pin bugs as `xfail`
+- **Context:** An IV&V audit found three defects that were *implementation* bugs, not test bugs. Writing
+  tests that encode correct behaviour would turn the suite red, conflicting with "all tests pass
+  consistently".
+- **Decision (maintainer, explicit):** fix the code and the tests together in the same pass.
+- **Rejected:** (a) `xfail(strict=True)` pinning — keeps the suite green and documents the bugs, but ships
+  a knowingly corrupting pipeline into the knowledge base; (b) characterization tests asserting current
+  behaviour — fastest to green, but *enshrines* known-wrong behaviour, the exact failure the audit brief
+  warns about ("a passing suite that validates the wrong behaviour is more dangerous than no tests").
+
+## 2026-07-25 (session 6): A call-to-action needs corroborating evidence, not a line-initial keyword
+- **Reason:** every CTA word (`vote`, `comment`, `follow`, `like`, `share`, `rate`, `review`) is also an
+  ordinary English verb. Matching any line that merely *starts* with one deleted real narration —
+  measured: 5 of 5 realistic prose lines destroyed. Corpus text is the knowledge base's input, so this
+  was silent data corruption, not a cosmetic flaw.
+- **Shape:** a line is boilerplate only if it opens with `please` + a CTA verb, or opens with a CTA verb
+  **and** carries a second reader-directed marker (another CTA verb, `if you`, `this chapter`,
+  `for more`, `my story`, `don't forget`). `read on <host>` now needs an explicit continuation object
+  (`the rest` / `more` / `the full story`).
+- **Rejected:** line-length or trailing-punctuation heuristics — real CTAs and real narration overlap on
+  both, so neither separates them.
+
+## 2026-07-25 (session 6): Truncation is DECLARED per record, not left to index-gap inference
+- **Reason:** `chapters[].index` gaps cannot be distinguished from an author's own numbering, and
+  `num_chapters_reported` counts parts that were never fetched — a different question. A real harvest
+  shipped `wattpad:864850` starting at **chapter 2** with nothing saying so.
+- **Shape:** corpus schema **1.1 → 1.2**, adding `chapters_dropped {non_prose, duplicate, is_partial}`.
+  Additive only, so 1.0/1.1 readers keep working.
+- **Also documented (was true but unwritten):** chapter dedup is **run-scoped, not work-scoped** — if
+  work B repeats text already seen in work A, the chapter is dropped *from B*.
+- **Rejected:** dropping the dedup guarantee (contract §4 promises exact-duplicate removal, and reposts
+  are real); making dedup per-work (would re-admit genuine cross-work reposts).
+
+## 2026-07-25 (session 6): A sink must be TOLD the branch-option ceiling, never recompute it
+- **Reason:** `JsonlCorpusSink` recomputed branch points with its own default, so `--max-branch-options 2`
+  printed 2 options to the console and wrote 3 to disk. The artifact is what the knowledge base ingests,
+  so a producer whose output contradicts its own CLI is worse than one that simply lacks the flag.
+- **Shape:** `max_branch_options` is now part of `CorpusSinkPort.write(...)` and threaded from the service.
+- **Rejected:** passing the ceiling to the sink's constructor — it is a per-run value, not per-sink.
+
+## 2026-07-25 (session 6): Test fixtures must match the SHAPE of real data, not just its type
+- **Reason:** the harvest fixtures defaulted to `chapters=1` per work. That single choice made intra-work
+  chapter dedup *structurally unobservable* — no assertion could have caught it. Real works are
+  multi-chapter (the live Dexter corpus is 43 chapters across 4 works).
+- **Rule adopted:** a cap or count assertion uses `==`, never `<=` — `assert len(stories) <= 2` is also
+  satisfied by a harvester that returns nothing, and passed for exactly that reason.
+- **Consequence:** `PerChapterSource` / `PerWorkSource` doubles now serve distinct text per chapter/work.
