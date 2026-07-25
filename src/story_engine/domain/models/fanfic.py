@@ -258,6 +258,29 @@ class HarvestedStory(DomainModel):
     alias_hits: tuple[str, ...] = ()
     premise: PremiseSignature | None = None
     prose_quality: ProseQuality | None = None
+    dropped_non_prose: int = Field(
+        default=0,
+        ge=0,
+        description="Chapters fetched for this work then rejected by the prose gate.",
+    )
+    dropped_duplicate: int = Field(
+        default=0,
+        ge=0,
+        description=(
+            "Chapters fetched for this work then dropped as exact duplicates of text already "
+            "seen in this run. Non-zero means `chapters` is not the work as published."
+        ),
+    )
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def is_partial(self) -> bool:
+        """True if any fetched chapter was dropped, so `chapters` under-represents the work.
+
+        The consumer's truncation signal: index gaps alone cannot distinguish a dropped chapter
+        from an author's own numbering, and `num_chapters_reported` counts parts never fetched.
+        """
+        return bool(self.dropped_non_prose or self.dropped_duplicate)
 
     @computed_field  # type: ignore[prop-decorator]
     @property

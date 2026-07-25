@@ -23,6 +23,14 @@ _LEADING_ARTICLES = frozenset({"the", "a", "an"})
 # "A Dexter Fanfiction", "[Dexter Fanfiction]", or the tag `dexterfanfiction` — a self-declaration.
 _FANFIC_MARKER = r"(?:fan\W*fictions?|fan\W*fics?|fics?)"
 
+# Reader-directed call-to-action vocabulary. Every one of these is also an ordinary English verb, so
+# a bare line-initial match is NOT sufficient evidence of boilerplate — see `_BOILERPLATE_LINE_RES`.
+_CTA_VERBS = r"vote|comment|follow|subscribe|like|share|rate|review"
+_CTA_CONTEXT = (
+    r"if\s+you|this\s+(?:chapter|story|book|part)|for\s+more|don'?t\s+forget"
+    r"|my\s+(?:story|book|account)"
+)
+
 # Author-note and cross-promotion boilerplate. Anchored per-line: these are conventionally their own
 # line, and anchoring avoids eating dialogue that merely contains the words.
 _BOILERPLATE_LINE_RES = (
@@ -30,12 +38,26 @@ _BOILERPLATE_LINE_RES = (
     re.compile(r"^\s*author'?s?\s+note\s*[:.-]", re.IGNORECASE),
     re.compile(r"^\s*(?:disclaimer|warning)\s*[:.-]", re.IGNORECASE),
     re.compile(r"^\s*i\s+(?:do\s+not|don'?t)\s+own\b", re.IGNORECASE),
+    # Cross-promotion needs an explicit continuation object ("read THE REST on AO3"). A bare
+    # "read on <host>" also matches ordinary narration - "He read on Wattpad about the case" was
+    # deleted as boilerplate before this was tightened.
     re.compile(
-        r"\bread\s+(?:the\s+rest\s+)?on\s+(?:ao3|archive|ffn|wattpad)\b", re.IGNORECASE
+        r"\bread\s+(?:the\s+rest|the\s+full\s+(?:story|version|fic|chapter)|more)\s+on\s+"
+        r"(?:ao3|archive\w*|ffn|fanfiction\.net|wattpad)\b",
+        re.IGNORECASE,
     ),
     re.compile(r"^\s*(?:first|prev(?:ious)?|next|start)\s*[|/]", re.IGNORECASE),
+    # A call to action, NOT any line opening with one of these words. "Like a knife, the cold cut
+    # through him." and "Follow the blood, he thought." are narration; requiring either an explicit
+    # "please" or a second reader-directed marker keeps them while still catching real A/N spam.
+    re.compile(rf"^\s*please\s+(?:{_CTA_VERBS})\b", re.IGNORECASE),
     re.compile(
-        r"^\s*(?:please\s+)?(?:vote|comment|follow|subscribe|like)\b", re.IGNORECASE
+        rf"^\s*(?:don'?t\s+forget|make\s+sure|remember)\s+to\s+(?:{_CTA_VERBS})\b",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        rf"^\s*(?:{_CTA_VERBS})\b[^\n]*?\b(?:{_CTA_VERBS}|{_CTA_CONTEXT})\b",
+        re.IGNORECASE,
     ),
     re.compile(r"^\s*(?:edit|update)\s*[:.-]", re.IGNORECASE),
     re.compile(r"^\s*\[?(?:posted|cross-?posted)\s+(?:from|to)\b", re.IGNORECASE),

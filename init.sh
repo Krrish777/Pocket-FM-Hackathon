@@ -28,8 +28,18 @@ else
 fi
 
 echo "--- consistency check ---"
+# The gate's exit code is the signal, so it must NOT be swallowed. This previously ended in
+# `|| echo "not green yet (expected during initialization)"`, which made init.sh exit 0 on a RED
+# gate — the same failure mode as piping `make check` into grep/tail. Initialization is over: a red
+# gate is now a real defect and must stop the session.
 if [ -f pyproject.toml ]; then
-  make check || echo "  make check not green yet (expected during initialization)"
+  if make check; then
+    echo "  consistency: GREEN"
+  else
+    status=$?
+    echo "  consistency: RED (make check exited ${status}) — FIX THIS BEFORE WORKING." >&2
+    exit "${status}"
+  fi
 else
   echo "  pyproject.toml not created yet — scaffold the project first (see BACKLOG.md)."
 fi

@@ -37,6 +37,12 @@ _RETRY_STATUS = frozenset({429, 500, 502, 503, 504})
 _BLOCK_CLOSE_RE = re.compile(r"</\s*(?:p|div|h[1-6]|li|blockquote)\s*>", re.IGNORECASE)
 _LINE_BREAK_RE = re.compile(r"<\s*br\s*/?\s*>", re.IGNORECASE)
 _TAG_RE = re.compile(r"<[^>]+>")
+# Stripping tags alone leaves the *contents* of these elements behind as if it were prose, so a
+# stylesheet or script block would be harvested as story text. Removed whole, before tag stripping.
+_SCRIPT_STYLE_RE = re.compile(
+    r"<(script|style)\b[^>]*>.*?</\1\s*>", re.IGNORECASE | re.DOTALL
+)
+_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
 _BLANK_RUN_RE = re.compile(r"\n{3,}")
 
 
@@ -101,7 +107,8 @@ def get_with_retry(
 
 def html_to_text(markup: str) -> str:
     """Convert a chapter's HTML fragment to plain text, preserving paragraph breaks."""
-    with_paragraphs = _BLOCK_CLOSE_RE.sub("\n\n", markup)
+    without_code = _COMMENT_RE.sub("", _SCRIPT_STYLE_RE.sub("", markup))
+    with_paragraphs = _BLOCK_CLOSE_RE.sub("\n\n", without_code)
     with_breaks = _LINE_BREAK_RE.sub("\n", with_paragraphs)
     stripped = _TAG_RE.sub("", with_breaks)
     unescaped = html.unescape(stripped)

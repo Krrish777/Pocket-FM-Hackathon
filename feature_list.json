@@ -71,13 +71,6 @@
       "evidence": "2026-07-24 (s2): find-skills installed to ~/.claude/skills; official fastapi/fastapi@fastapi (100.8K stars, 3 security audits) installed project-level; content verified (321-line SKILL.md + 6 references). Evaluation matrix recorded in DECISIONS.md + memory."
     },
     {
-      "id": "HARDEN-05",
-      "description": "Author local sqlmodel/pytest/thin-pydantic skills modeled on the FastAPI skill structure",
-      "verification": "test -e .claude/skills/sqlmodel/SKILL.md && test -e .claude/skills/pytest/SKILL.md",
-      "passes": false,
-      "evidence": "DEFERRED (s2, s5) \u2014 superseded in priority by product features now that the brief has landed. Do not start before M1-M8."
-    },
-    {
       "id": "M8",
       "description": "Uniform character state schema \u2014 all 5 cast members share one identical state structure (knowledge set over shared world state + traits + goals); no PC/NPC asymmetry in storage; renderer takes a character as a parameter. See project_context.md \u00a74.4.",
       "verification": "uv run pytest -m unit -k character_state_schema -q",
@@ -195,6 +188,13 @@
       "verification": "test -f docs/EXT-1-scraper-output-contract.md",
       "passes": true,
       "evidence": "2026-07-25 (s5): docs/EXT-1-scraper-output-contract.md answers all four \u00a79 checkboxes, documents corpus schema 1.1 + wiki-index schema 1.0 field-by-field, states guarantees AND non-guarantees, and records the one two-way dependency: EXT-1 cannot cite a canon SCENE until the Canon Kernel exposes a resolvable moment id."
+    },
+    {
+      "id": "HARDEN-05",
+      "description": "Author local sqlmodel/pytest/thin-pydantic skills modeled on the FastAPI skill structure",
+      "verification": "test -e .claude/skills/sqlmodel/SKILL.md && test -e .claude/skills/pytest/SKILL.md",
+      "passes": false,
+      "evidence": "DEFERRED (s2, s5) \u2014 superseded in priority by product features now that the brief has landed. Do not start before M1-M8."
     }
   ]
 }

@@ -73,13 +73,13 @@ def _write(tmp_path: Path) -> tuple[dict[str, object], list[dict[str, object]]]:
 
 
 class TestRecordSchema:
-    def test_schema_version_is_bumped_for_the_new_blocks(self) -> None:
-        assert CORPUS_SCHEMA_VERSION == "1.1"
+    def test_schema_version_matches_the_documented_contract(self) -> None:
+        assert CORPUS_SCHEMA_VERSION == "1.2"
 
     def test_every_record_carries_premise_and_quality(self, tmp_path: Path) -> None:
         _, records = _write(tmp_path)
         for record in records:
-            assert record["schema_version"] == "1.1"
+            assert record["schema_version"] == "1.2"
             premise = record["premise"]
             assert premise["key"] == "character_survives:brian"
             assert premise["decision_point"]
@@ -142,3 +142,63 @@ class TestManifest:
 
     def test_slug_is_filesystem_safe(self) -> None:
         assert slugify("The Witcher!") == "the-witcher"
+
+    def test_story_count_matches_the_jsonl_line_count(self, tmp_path: Path) -> None:
+        # Contract 3.2 names this as THE corruption check ("if story_count disagrees with the line
+        # count, the run was interrupted"), and nothing asserted it until now.
+        manifest, records = _write(tmp_path)
+        lines = [
+            line
+            for line in (tmp_path / "dexter" / "stories.jsonl")
+            .read_text(encoding="utf-8")
+            .splitlines()
+            if line.strip()
+        ]
+        assert manifest["story_count"] == len(lines) == len(records)
+        assert manifest["chapter_count"] == sum(len(r["chapters"]) for r in records)
+        assert manifest["total_words"] == sum(r["total_words"] for r in records)
+
+    def test_branch_option_ceiling_is_honoured_on_disk(self, tmp_path: Path) -> None:
+        # Regression for the sink recomputing branch points with its own default ceiling.
+        stories = tuple(
+            _story(str(i), blurb, VIVID)
+            for i, blurb in enumerate(
+                (
+                    "Dexter doesn't kill Brian. They rekindle the brotherly bond.",
+                    "Dexter lets Brian live, and they build a family together.",
+                    "What if Brian survives and carries on past the ending?",
+                    "Brian is spared, displaced in time, and everything changes.",
+                ),
+                start=1,
+            )
+        )
+        JsonlCorpusSink(tmp_path).write("Dexter", stories, max_branch_options=2)
+        manifest = json.loads(
+            (tmp_path / "dexter" / "manifest.json").read_text(encoding="utf-8")
+        )
+        for point in manifest["branch_points"]:
+            assert len(point["options"]) <= 2
+
+
+class TestTruncationProvenance:
+    """Schema 1.2: a partial work must say so, rather than leaving it to index-gap inference."""
+
+    def test_a_partial_work_declares_its_dropped_chapters(self, tmp_path: Path) -> None:
+        partial = _story("1", SPARES_BRIAN, VIVID).model_copy(
+            update={"dropped_non_prose": 1, "dropped_duplicate": 2}
+        )
+        JsonlCorpusSink(tmp_path).write("Dexter", (partial,))
+        record = json.loads(
+            (tmp_path / "dexter" / "stories.jsonl").read_text(encoding="utf-8").strip()
+        )
+        assert record["schema_version"] == "1.2"
+        assert record["chapters_dropped"] == {
+            "non_prose": 1,
+            "duplicate": 2,
+            "is_partial": True,
+        }
+
+    def test_a_complete_work_is_not_marked_partial(self, tmp_path: Path) -> None:
+        _, records = _write(tmp_path)
+        for record in records:
+            assert record["chapters_dropped"]["is_partial"] is False

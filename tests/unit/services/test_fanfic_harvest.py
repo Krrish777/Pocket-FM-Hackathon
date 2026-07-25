@@ -6,6 +6,7 @@ dead host, and that the report explains every rejection.
 
 import pytest
 
+from story_engine.domain.fanfic_premise import MAX_BRANCH_OPTIONS
 from story_engine.domain.models.fanfic import (
     Chapter,
     ChapterRef,
@@ -23,6 +24,18 @@ PROSE = (
     '"Then sit, and eat." He pushed the bowl toward her across the fire.\n\n'
     "She sat, and the broth burned her tongue, and she did not care at all."
 ) * 12
+
+
+def _unique_prose(seed: int) -> str:
+    """Prose that clears the gate and is distinct per work, so dedup cannot mask a cap."""
+    return (
+        f'"You came back," Geralt said, and the fire spat between them for the {seed}th time.\n\n'
+        '"I had nowhere else to go," she answered, watching the treeline where the wolves had '
+        "been.\n\n"
+        '"Then sit, and eat." He pushed the bowl toward her across the coals without looking '
+        "up.\n\n"
+        "She sat, and the broth burned her tongue, and she did not care at all that night.\n\n"
+    ) * 30
 
 
 def _ref(
@@ -88,9 +101,17 @@ class RecordingSink:
 
     def __init__(self) -> None:
         self.written: tuple[HarvestedStory, ...] = ()
+        self.max_branch_options: int | None = None
 
-    def write(self, fandom: str, stories: tuple[HarvestedStory, ...]) -> str:
+    def write(
+        self,
+        fandom: str,
+        stories: tuple[HarvestedStory, ...],
+        *,
+        max_branch_options: int = MAX_BRANCH_OPTIONS,
+    ) -> str:
         self.written = stories
+        self.max_branch_options = max_branch_options
         return f"memory://{fandom}"
 
 
@@ -110,6 +131,20 @@ class TestHarvest:
         assert report.sink_location == "memory://The Witcher"
         assert sink.written == stories
         assert "geralt" in stories[0].alias_hits
+
+    def test_branch_option_ceiling_reaches_the_sink(self) -> None:
+        # Regression: the sink used to recompute branch points with its own default, so the
+        # persisted artifact could offer more options than the caller asked for and than the CLI
+        # printed. The artifact is what the knowledge base ingests, so they must not disagree.
+        sink = RecordingSink()
+        harvester = FanficHarvester(
+            sources=(FakeSource((_ref("1"),)),),
+            alias_expander=StaticExpander(("Geralt", "Ciri")),
+            sink=sink,
+        )
+        harvester.harvest("The Witcher", max_branch_options=2)
+
+        assert sink.max_branch_options == 2
 
     def test_rejects_work_lacking_two_distinct_aliases(self) -> None:
         off_topic = StoryRef(
@@ -155,14 +190,16 @@ class TestHarvest:
         assert len(stories) == 1
 
     def test_respects_max_stories(self) -> None:
-        refs = tuple(_ref(str(i), title=f"Witcher Tale {i}") for i in range(1, 6))
-        # Distinct text per work so dedup does not mask the cap.
+        # Distinct text per work so dedup does not mask the cap. `PerWorkSource` is used rather
+        # than `FakeSource`, which serves identical prose and would collapse all five to one.
         harvester = FanficHarvester(
-            sources=(FakeSource(refs),),
+            sources=(PerWorkSource({str(i): _unique_prose(i) for i in range(1, 6)}),),
             alias_expander=StaticExpander(("Geralt", "Ciri")),
         )
         stories, _ = harvester.harvest("The Witcher", max_stories=2)
-        assert len(stories) <= 2
+        # `==`, not `<=`: a harvester returning nothing at all also satisfies `<= 2`.
+        assert len(stories) == 2
+        assert len({s.ref.source_id for s in stories}) == 2
 
     def test_dead_host_does_not_abort_the_run(self) -> None:
         harvester = FanficHarvester(
@@ -184,6 +221,87 @@ class TestHarvest:
     def test_requires_at_least_one_source(self) -> None:
         with pytest.raises(ValueError, match="at least one fanfic source"):
             FanficHarvester(sources=())
+
+
+class PerChapterSource:
+    """A source serving distinct text per chapter, so multi-chapter works can be exercised.
+
+    `FakeSource` serves identical prose to every chapter of a work, which the cross-work dedup
+    then collapses to one — making multi-chapter behaviour unobservable through it.
+    """
+
+    source_name = str(FanficSource.WATTPAD)
+
+    def __init__(self, texts: tuple[str, ...]) -> None:
+        self._texts = texts
+
+    def search(self, query: FandomQuery, *, limit: int) -> tuple[StoryRef, ...]:
+        return (_ref("1", chapters=len(self._texts)),)
+
+    def fetch_chapters(
+        self, ref: StoryRef, *, max_chapters: int
+    ) -> tuple[Chapter, ...]:
+        return tuple(
+            Chapter(index=cr.index, source_id=cr.source_id, text=self._texts[i])
+            for i, cr in enumerate(ref.chapter_refs[:max_chapters])
+        )
+
+
+class TestMultiChapterIntegrity:
+    """A work is multi-chapter in reality; single-chapter fixtures hide whole bug classes."""
+
+    def _harvest(self, texts: tuple[str, ...]):
+        return FanficHarvester(
+            sources=(PerChapterSource(texts),),
+            alias_expander=StaticExpander(("Geralt", "Ciri")),
+        ).harvest("The Witcher")
+
+    def test_all_distinct_chapters_survive_in_reading_order(self) -> None:
+        stories, report = self._harvest(tuple(_unique_prose(i) for i in range(1, 6)))
+
+        assert report.chapters_kept == 5
+        assert [c.index for c in stories[0].chapters] == [1, 2, 3, 4, 5]
+        assert report.duplicates_dropped == 0
+        assert stories[0].is_partial is False
+
+    def test_repeated_chapter_text_is_dropped_and_declared(self) -> None:
+        # A work repeating one block (a recap, or a re-posted part) must not silently ship short:
+        # index gaps alone cannot be told apart from an author's own numbering.
+        repeated = _unique_prose(1)
+        stories, report = self._harvest((repeated,) * 4 + (_unique_prose(2),))
+
+        assert report.duplicates_dropped == 3
+        assert stories[0].dropped_duplicate == 3
+        assert stories[0].is_partial is True
+        assert len(stories[0].chapters) == 2
+
+    def test_chapter_failing_the_prose_gate_is_declared_not_hidden(self) -> None:
+        # Mirrors a real harvest: wattpad:864850 shipped starting at chapter 2 with no marker.
+        stories, _ = self._harvest(("too short to be prose", _unique_prose(2)))
+
+        assert [c.index for c in stories[0].chapters] == [2]
+        assert stories[0].dropped_non_prose == 1
+        assert stories[0].is_partial is True
+
+    def test_a_complete_work_is_not_flagged_partial(self) -> None:
+        stories, _ = self._harvest((_unique_prose(1), _unique_prose(2)))
+        assert stories[0].is_partial is False
+        assert stories[0].dropped_non_prose == 0
+
+
+class TestMultiSourceResilience:
+    def test_a_dead_host_does_not_suppress_a_live_one(self) -> None:
+        # The documented contract of `_search_all`. Previously only ever exercised with a single
+        # dead source and no live peer, so the "continue with remaining sources" path was unproven.
+        live = PerWorkSource({"2": _unique_prose(2)})
+        harvester = FanficHarvester(
+            sources=(FakeSource((), fail_search=True), live),
+            alias_expander=StaticExpander(("Geralt", "Ciri")),
+        )
+        stories, report = harvester.harvest("The Witcher")
+
+        assert report.candidates_seen == 1
+        assert [s.ref.source_id for s in stories] == ["2"]
 
 
 # Two works whose blurbs name the SAME canon decision point in different words — the real Dexter

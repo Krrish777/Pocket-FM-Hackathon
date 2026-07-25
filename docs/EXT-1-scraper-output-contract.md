@@ -6,7 +6,7 @@
 >
 > **Owner:** this repo/branch (`worktree-reddit-fanfic-scraper`) — I am EXT-1.
 > **Consumer:** the Canon Kernel / Branch Oracle side (`worktree-knowledge-base`).
-> **Status:** CONFIRMED against the implementation on 2026-07-25. Corpus artifact is schema **1.1**;
+> **Status:** CONFIRMED against the implementation on 2026-07-25. Corpus artifact is schema **1.2**;
 > wiki-index artifact is schema **1.0**. Nothing here is inferred: unknowns are stated as unknown.
 
 ---
@@ -80,6 +80,20 @@ Settled fields (stable — safe to build against):
 `chapters[].index` is the work's own 1-based ordering and **may contain gaps**, because non-prose parts
 (forewords, author notes) are filtered out while the original ordering is preserved. Do not assume
 `index == position in array`.
+
+**Schema 1.2 addition — `chapters_dropped`.** Index gaps alone cannot be distinguished from an
+author's own numbering, so a truncated work used to be undetectable: a real harvest produced
+`wattpad:864850` shipping **only chapter 2**, with nothing saying chapter 1 had been dropped. Every
+record now carries:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `chapters_dropped.non_prose` | int | Chapters fetched, then rejected by the prose gate (§4). |
+| `chapters_dropped.duplicate` | int | Chapters fetched, then dropped as exact duplicates of text already seen **in this run** — including text first seen in a *different* work. |
+| `chapters_dropped.is_partial` | bool | True if either count is non-zero. **`chapters` is then not the work as published.** |
+
+Additive only: a 1.0/1.1 reader is unaffected. Consumers making continuity claims should treat
+`is_partial: true` works as having unexplained narrative gaps.
 
 **Schema 1.1 additions — CONFIRMED.** Every 1.0 field above is unchanged, so a 1.0 reader keeps working.
 Both new blocks are nullable: `null` means the producer did not compute them, which is different from
@@ -165,8 +179,13 @@ with the line count of `stories.jsonl`, the run was interrupted — treat the co
   and deliberately skipped at current corpus scale.)
 - **Not idempotent across runs.** Host search ranking shifts, so a re-run may return a different set. The
   corpus file is overwritten. Snapshot it if reproducibility matters.
-- **Chapter coverage may be partial** — capped by the caller. Compare `total_words` against
-  `num_chapters_reported`.
+- **Chapter coverage may be partial** — capped by the caller, and further reduced by the prose gate
+  and dedup. As of schema 1.2 this is **declared per record** via `chapters_dropped.is_partial`
+  rather than left to inference; `num_chapters_reported` still counts parts that were never fetched
+  at all, so the two answer different questions.
+- **Chapter dedup is run-scoped, not work-scoped.** If work B repeats text already seen in work A,
+  the chapter is dropped **from B**. B is then marked `is_partial` — but it is not the work as
+  published. Near-identical (non-exact) reposts are unaffected; see the near-duplicate note above.
 - **No completeness claim.** For any fandom the scraper returns what the reachable hosts surface, not the
   population. Measured example: the entire Wattpad Dexter fandom is **6 relevant works**.
 
@@ -215,7 +234,7 @@ moment-matching. This is the single largest remaining integration gap.
 
 ## 7. Versioning
 
-`schema_version` / `CORPUS_SCHEMA_VERSION` lives in
+`schema_version` / `CORPUS_SCHEMA_VERSION` (currently **1.2**) lives in
 `src/story_engine/adapters/outbound/fanfic/jsonl_sink.py` and is the authority.
 
 - **Patch/minor** — additive fields only. Consumers must ignore unknown fields.

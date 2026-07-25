@@ -189,7 +189,9 @@ class FanficHarvester:
             s.prose_quality.score for s in stories if s.prose_quality is not None
         )
         if self._sink is not None and stories:
-            report.sink_location = self._sink.write(fandom, stories)
+            report.sink_location = self._sink.write(
+                fandom, stories, max_branch_options=max_branch_options
+            )
         logger.info(
             "harvest %r kept %s works / %s chapters / %s words / %s premise groups / "
             "%s branch points",
@@ -293,13 +295,17 @@ class FanficHarvester:
             )
             return None
 
-        chapters = self._clean_and_gate(
+        chapters, dropped_non_prose, dropped_duplicate = self._clean_and_gate(
             raw_chapters, query, seen_fingerprints=seen_fingerprints, report=report
         )
         if not chapters:
             return None
         return HarvestedStory(
-            ref=ref, chapters=chapters, alias_hits=alias_hits(ref, query)
+            ref=ref,
+            chapters=chapters,
+            alias_hits=alias_hits(ref, query),
+            dropped_non_prose=dropped_non_prose,
+            dropped_duplicate=dropped_duplicate,
         )
 
     def _clean_and_gate(
@@ -309,23 +315,31 @@ class FanficHarvester:
         *,
         seen_fingerprints: set[str],
         report: HarvestReport,
-    ) -> tuple[Chapter, ...]:
-        """Strip boilerplate, drop non-prose, and drop exact duplicates."""
+    ) -> tuple[tuple[Chapter, ...], int, int]:
+        """Strip boilerplate, drop non-prose, and drop exact duplicates.
+
+        Returns the kept chapters plus this work's own drop counts, so the corpus record can
+        declare that it is partial instead of leaving the consumer to infer it from index gaps.
+        """
         cleaned: list[Chapter] = []
+        dropped_non_prose = 0
+        dropped_duplicate = 0
         for chapter in raw_chapters:
             candidate = chapter.model_copy(
                 update={"text": strip_boilerplate(chapter.text)}
             )
             if not admit_chapter(candidate, query):
                 report.prose_rejected += 1
+                dropped_non_prose += 1
                 continue
             fingerprint = content_fingerprint(candidate.text)
             if fingerprint in seen_fingerprints:
                 report.duplicates_dropped += 1
+                dropped_duplicate += 1
                 continue
             seen_fingerprints.add(fingerprint)
             cleaned.append(candidate)
-        return tuple(cleaned)
+        return tuple(cleaned), dropped_non_prose, dropped_duplicate
 
     def _source_for(self, ref: StoryRef) -> FanficSourcePort | None:
         """Return the configured source that owns `ref`, matched on the host it came from."""

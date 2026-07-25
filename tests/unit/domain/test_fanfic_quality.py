@@ -4,6 +4,8 @@ These encode the empirically measured separation (spec §2.4): real prose runs 2
 per 1k words while discussion posts sit at a median of exactly 0.0.
 """
 
+import pytest
+
 from story_engine.domain.fanfic_quality import (
     alias_hits,
     content_fingerprint,
@@ -290,3 +292,55 @@ class TestFingerprinting:
 
     def test_different_text_differs(self) -> None:
         assert content_fingerprint("a") != content_fingerprint("b")
+
+
+class TestBoilerplateDoesNotEatProse:
+    """Regression: every CTA word is also an ordinary English verb.
+
+    The stripper previously deleted any line merely *starting* with vote/comment/follow/like, and
+    matched "read on <host>" unanchored. Five realistic narration lines were destroyed silently —
+    corpus text is the knowledge base's input, so this is data corruption, not a cosmetic bug.
+    """
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "Like a knife, the cold cut through him.",
+            "Follow the blood, he thought. It always leads home.",
+            "Comment threads of dried blood marked the wall.",
+            "Vote counting was never his concern that night.",
+            "He read on Wattpad about the case, then closed the laptop.",
+            "Share the burden, she said, and he almost laughed.",
+            "Rate of decay told him everything he needed to know.",
+            "Review the evidence again, Deb said, and hung up.",
+        ],
+    )
+    def test_narration_starting_with_a_cta_word_survives(self, line: str) -> None:
+        assert strip_boilerplate(line) == line
+
+    @pytest.mark.parametrize(
+        "line",
+        [
+            "Please vote and comment!",
+            "Vote and comment if you liked it!",
+            "Follow me for more chapters!",
+            "Like this chapter? Vote!",
+            "Read the rest on AO3",
+            "Read more on Wattpad!",
+            "Don't forget to vote!",
+            "please subscribe",
+        ],
+    )
+    def test_real_calls_to_action_are_still_removed(self, line: str) -> None:
+        assert strip_boilerplate(line) == ""
+
+    def test_a_cta_line_is_removed_without_taking_its_neighbours(self) -> None:
+        text = (
+            "Like a shadow he moved between the parked cars.\n"
+            "Please vote and comment!\n"
+            "The harbour smelled of salt and diesel."
+        )
+        assert strip_boilerplate(text) == (
+            "Like a shadow he moved between the parked cars.\n"
+            "The harbour smelled of salt and diesel."
+        )

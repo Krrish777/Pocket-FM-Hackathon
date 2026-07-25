@@ -16,12 +16,16 @@ from itertools import pairwise
 from pathlib import Path
 from statistics import median
 
-from story_engine.domain.fanfic_premise import branch_points, group_by_premise
+from story_engine.domain.fanfic_premise import (
+    MAX_BRANCH_OPTIONS,
+    branch_points,
+    group_by_premise,
+)
 from story_engine.domain.models.fanfic import HarvestedStory
 
 logger = logging.getLogger(__name__)
 
-CORPUS_SCHEMA_VERSION = "1.1"
+CORPUS_SCHEMA_VERSION = "1.2"
 """Contract version for the on-disk corpus.
 
 * **1.0** — attribution + relevance + chapter text.
@@ -30,6 +34,10 @@ CORPUS_SCHEMA_VERSION = "1.1"
   `prose_quality` / `ordering` blocks to the manifest. Every 1.0 field is unchanged and still
   present, so a 1.0 reader keeps working; the new fields may be `null` when the producer did not
   compute them.
+* **1.2** — adds `chapters_dropped` (`non_prose`, `duplicate`, `is_partial`) per record. Chapters
+  rejected by the prose gate or dropped as exact duplicates were previously invisible: a work
+  could ship starting at chapter 2 with nothing saying so, since index gaps are indistinguishable
+  from an author's own numbering. Additive only — a 1.0/1.1 reader keeps working.
 """
 DEFAULT_CORPUS_ROOT = Path("data/raw/fanfic")
 
@@ -53,7 +61,13 @@ class JsonlCorpusSink:
         """
         self._root = Path(root)
 
-    def write(self, fandom: str, stories: tuple[HarvestedStory, ...]) -> str:
+    def write(
+        self,
+        fandom: str,
+        stories: tuple[HarvestedStory, ...],
+        *,
+        max_branch_options: int = MAX_BRANCH_OPTIONS,
+    ) -> str:
         """Write `stories` and a manifest, returning the corpus directory path."""
         target = self._root / slugify(fandom)
         target.mkdir(parents=True, exist_ok=True)
@@ -102,7 +116,7 @@ class JsonlCorpusSink:
                         for option in point.options
                     ],
                 }
-                for point in branch_points(stories)
+                for point in branch_points(stories, max_options=max_branch_options)
             ],
             "branch_oracle_note": (
                 "Branch structure only: fan fiction supplies WHAT the options are. Option labels "
@@ -196,6 +210,11 @@ def _to_record(story: HarvestedStory) -> dict[str, object]:
             ],
         },
         "total_words": story.total_words,
+        "chapters_dropped": {
+            "non_prose": story.dropped_non_prose,
+            "duplicate": story.dropped_duplicate,
+            "is_partial": story.is_partial,
+        },
         "chapters": [
             {
                 "index": chapter.index,
