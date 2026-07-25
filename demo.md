@@ -1,5 +1,9 @@
 # DEMO.md — the scope lock
 
+> **▶ STATUS: THE DEMO RUNS.** Beats 1–9 are built end to end; run it with §0 below.
+> `make check` green, **497 tests**, **33/40 features**. What is left is in `BACKLOG.md` § NOW —
+> headed by **M4**, the gap between "choices come from fan fiction" as a claim and as a fact.
+>
 > **Status:** ACTIVE · **Written:** 2026-07-25 · **Runway at time of writing: ~14 hours**
 >
 > **This file is a fence, not a wishlist.** It lists the things we build and *nothing else*. If a task is
@@ -43,7 +47,7 @@ This is the whole artifact. Every task in §3 exists to serve one of these beats
 | 3 | **Scene** | The current scene, rendered from *that character's* filtered view. |
 | 4 | **Act** | Player types what they want to do, free-form. |
 | 5 | **Branch** | The system grounds that intent in a divergence real fan-fiction actually wrote. |
-| 6 | **Ripple** | Every cast member updates. **Those present learn it. Those absent do not.** |
+| 6 | **Ripple** | Every cast member updates. **Those present learn it. Those absent do not.** The renderer receives a derived directive per character — *"Doakes — tension 2/5. Does NOT know: …"* — so the other four act on their own incomplete picture (M6). |
 | 7 | **Compound** | Repeat 3–6. State at step N correctly reflects choices 1…N−1. |
 | 8 | **Receipt** | "Every fact is checked" — show the canon fact and where in the novel it came from. |
 | 9 | **The closer** | Replay the *same branch* as Debra. She visibly does not know what the room just watched happen. |

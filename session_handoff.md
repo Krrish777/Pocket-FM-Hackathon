@@ -3,12 +3,15 @@
 > The single per-session **clock-out** note. At session start read this first, then `PROGRESS.md` and
 > `DECISIONS.md`. Five sessions have clocked out here: **Session A** (product definition), **Session B**
 > (EXT-1 scraper build), **Session C** (EXT-1 IV&V audit), **Session D** (knowledge-base IV&V audit
-> + remediation), and **Session E** (worktree cleanup, demo scope lock, novel ingestion).
-> **Session E is the most recent.**
+> + remediation), and **Session E** (worktree cleanup, scope lock, novel ingestion, **and the
+> playable demo**). **Session E is the most recent.**
+>
+> **▶ THE DEMO RUNS:** `uv run story-engine play --auto --turns 5 --replay-as deborah`
+> — no API key needed. `demo.md` §0 explains what to watch.
 
 ---
 
-## Session E — 2026-07-25 (scope lock + novel PDF ingestion)
+## Session E — 2026-07-25 (scope lock → novel ingestion → **a working demo**)
 
 **Branch:** `main`. Both parallel worktrees were merged and removed; the session then locked the demo
 scope in writing and built the first task from it.
@@ -95,25 +98,57 @@ real novel and closes on the replay beat. **No API key needed** — beats are re
    so that quietly moved every reveal boundary in the book — while all synthetic fixtures stayed green,
    because none of them had a table of contents.
 
-### State
-`make check` **GREEN**, **487 tests**. `feature_list.json`: **32/40 passing**.
-**M1, M2, M3, M5, S3 flipped to true**, each by its own re-pointed verification command.
+### And then the cast started reacting (session 7c, same day)
+**M6 — derived directives.** The renderer now gets a line for every *other* cast member:
+`Sergeant Doakes — tension toward dexter: 2/5. Does NOT know: <clauses>.`
+Added `prompts/render_scene/v2.jinja`; **v1 kept intact** per `prompts/README.md`.
 
-**M6, M7, M8 deliberately left false even though their commands now pass** — a green command I wrote
-myself is not evidence the spec is met:
+- **Computed at render time, never stored.** Storing rich state for the protagonist and thin
+  directives for everyone else would hardcode a hierarchy and turn S3 into a rewrite.
+- **The anti-leak property is structural, not instructional.** A directive is
+  `actor_facts − their_facts`, so it can only ever name facts the actor already knows — it is
+  *incapable* of surfacing a third party's secret, rather than merely instructed not to. Asserted on
+  the real assembled prompt: after Doakes learns the secret, Deborah's replay prompts still never
+  contain "Dark Passenger".
+- **Tension is derived, not authored.** Live run: Doakes **2/5**, Rita **3/5** — Doakes reads
+  *closer* to Dexter because he was in the parking lot. Nobody edited a character sheet.
+
+### State at clock-out
+`make check` **GREEN**, **497 tests**, exit 0. `feature_list.json`: **33/40 passing**.
+Working tree clean. Four commits: `a7077a5`, `215e173`, `00550e8`, `8dfb0ea`.
+
+**M1, M2, M3, M5, M6, S3 flipped** — each earned by its own re-pointed verification command.
+
+**M7 and M8 deliberately left false even though their commands now pass** — a green command written
+by the same session is not evidence the spec is met:
 - **M8** — uniform schema is real; **traits and goals still do not exist** on the character record.
-- **M6** — per-turn re-evaluation works, but the renderer never receives the *derived directives* for
-  the other cast (§4.4), so the other four don't visibly react.
 - **M7** — the receipt works; **§5.5's verifier does not exist**, so nothing separates intentional
   divergence from accidental contradiction. "Consistency enforced" is not yet true.
 
-### Next step
-1. **M4 / T5 — bind the Branch Oracle to canon moments.** The biggest *honesty* gap: options come
-   from an authored table (`resources/dexter_demo.py`), not from mined fan fiction. Three of ten carry
-   a real `source_work_id`, but the labels are authored. The pitch claims otherwise.
-2. **M6's derived directives** — the cheapest way to make the other four characters visibly react.
-3. **T9 — the frontend.** The demo is terminal-only; its `CanonClient` still targets the superseded
-   single-flip contract while the backend now serves a turn loop.
+### Next step — start here
+1. **M4 / T5 — bind the Branch Oracle to real mined fan fiction.** *The biggest honesty gap.* §5.2
+   and the pitch both claim choices come from divergences fan fiction actually wrote; they come from
+   an authored table in `resources/dexter_demo.py`. Only the `source_work_id` values are genuine.
+   **Blocked on data:** `data/` is empty (the corpus lived in the deleted worktree), so step one is
+   re-running `story-engine harvest "Dexter" --kind novel --show-branches` — that needs network.
+   Anything that stays authored must keep `source_work_id=None` so the distinction stays auditable.
+2. **M8's traits and goals** — small, and it closes a MUST.
+3. **M7's verifier** (§5.5) — the distinction, not a blanket contradiction flag. A verifier that
+   flagged every divergence would be useless here, because deliberately breaking canon is the genre.
+4. **T9 — the frontend.** Terminal-only today. Its `CanonClient` still targets the superseded
+   single-flip contract (`getMoments`/`postDivergence`/`postRegenerate`) while the backend serves a
+   turn loop. Biggest *presentability* win; also the biggest job.
+
+### Still open
+- **D-2 — snap-to-branch vs true free-form.** Recommend snap-to-branch. Unchanged.
+- **D-3 — novel vs screen canon** (OD-2). The demo uses **novel** names; fan fiction is mostly screen.
+  This bites the moment M4 starts.
+- **A real embedder.** Measured on the full novel: verbatim recall@5 8/8, but natural-language
+  retrieval is near-random, exactly as `HashingEmbedder`'s docstring predicts. The guard held
+  perfectly (0 leaked of 20 hits at ch3). `fastembed` behind `EmbedderPort` is the fix.
+- **`research/Pocket FM Hack/` is a nested git repo** and stays untracked. Do **not** `git add` it —
+  that is precisely how the two worktrees became mode-160000 gitlinks that this session had to unpick.
+- **D-1 is CLOSED** — the PDF is at `data/external/Darkly-Dreaming-Dexter-1.pdf`.
 
 ### Still open
 - **D-2 — snap-to-branch vs true free-form.** Recommend snap-to-branch. Unchanged.

@@ -4,29 +4,36 @@
 > `feature_list.json` (with a `verification` command, `passes:false`). `feature_list.json` is the machine
 > source of truth; this file is for humans to plan and reorder.
 
-## 🟢 NOW — the 14-hour demo queue (session 7, 2026-07-25). **`demo.md` is the scope fence.**
+## 🟢 NOW — what is left after the demo shipped (end of session 7, 2026-07-25)
 
-> **Read `demo.md` first.** It locks the nine demo beats, the ordered tasks below, a pre-decided cut
-> ladder, and an explicit not-building list. Estimated ~18 h against ~14 h of runway — the cut ladder
-> (`demo.md` §5) is the answer to that gap, and it was decided cold on purpose.
+> **The demo runs:** `uv run story-engine play --auto --turns 5 --replay-as deborah` — no API key.
+> `make check` green, **497 tests**, **33/40 features**. `demo.md` remains the scope fence; its cut
+> ladder (§5) is still the answer if the runway tightens.
 >
-> **T2 landed this session** (see *Done* below). Everything else is open.
+> **Done this session:** T1 (superseded — see note), T2, T3, T4, T7, T8, T10, and M6.
 
-| # | Task | Est. | Serves |
+| # | Task | Est. | Why it matters |
 |---|---|---|---|
-| T0 | **Regenerate `data/`** — re-run `story-engine harvest "Dexter" --kind novel` + `wiki-index "Dexter"`. `data/` holds only `.gitkeep`; the corpus lived in the deleted scraper worktree. | 30 m | T5 |
-| T1 | **LLM adapter + first prompt.** Only `StubLLM` exists and `prompts/` is one README, so nothing can render a sentence. Real adapter behind `LLMPort`, logging tokens/cost, `max_tokens` always set; `prompts/render_scene/v1.jinja`. **Widest-reach unblocker — do it first.** | 1.5 h | every text beat |
-| T3 | **Knowledge propagation — derive `knower_scope` from `Scene.witnesses`.** KB-13's unbuilt half. ⚠ **THE LOAD-BEARING TASK**: it is simultaneously the ripple, the butterfly effect, per-character memory, and the setup for the replay closer. `project_context.md` §4.2 calls it the acceptance condition for the whole build. | 2 h | beats 6, 7, 9 |
-| T4 | **Turn loop (`PlaythroughService`)** — assemble view → offer branch → apply choice → recompute witnesses → propagate → render. One narration call/turn; transitions deterministic in code. Closes M2/M3/M6. | 3 h | beats 2, 3, 7 |
-| T5 | **Branch Oracle → canon-moment binding.** The oracle cannot yet cite a canon scene (our own EXT-1 contract says so). Closes M4. | 2 h | beat 5 |
-| T6 | **Free-form intent router (snap-to-branch).** Embed the player's typed intent, match it to a mined branch at the current decision point, route to the pre-validated branch; below threshold, generate a candidate and verify *before* applying (also closes OD-4's degradation path). | 2 h | beats 4, 5 |
-| T7 | **Receipt surface.** Show the canon fact + source location behind a checked claim. Must separate *intentional divergence* from *accidental contradiction* (§5.5). Closes M7. | 1 h | beat 8 |
-| T8 | **Replay as another character.** Re-render the finished branch as Debra. Near-free given M8 — only the toggle is work. **Cheapest strong beat on the board; do not let it fall off the end.** | 45 m | beat 9 |
-| T9 | **API + frontend rewire + rehearsal.** The frontend's `CanonClient` targets the superseded single-flip contract (`getMoments`/`postDivergence`/`postRegenerate`) while the backend serves `/episodes`. Keep the mock alive as the stage fallback. | 3 h | all |
-| T10 | **Fix the broken verification commands.** Several `feature_list.json` entries verify with `-m unit -k …`, but `pyproject.toml` registers only `slow`/`integration`/`e2e` — there is **no `unit` marker**, so those commands select nothing and can never flip a feature to passing however good the code is (AUD-M3). | 20 m | the harness |
+| **T0 + T5 → M4** | **Bind the Branch Oracle to real mined fan fiction.** ⚠ **THE HONESTY GAP.** `project_context.md` §5.2 and the pitch both say choices come from divergences fan fiction actually wrote. They come from an authored table in `resources/dexter_demo.py` — only the `source_work_id` values are genuine. **Step one is data:** `data/` is empty (the corpus lived in the deleted worktree), so re-run `story-engine harvest "Dexter" --kind novel --show-branches` + `wiki-index "Dexter"` — **needs network**. Anything that stays authored must keep `source_work_id=None` so the distinction stays auditable. | 2.5 h | a true claim beats a pretty one |
+| M8 | **Traits and goals on the character record.** The uniform-schema half is done; this is the disposition half, and it closes a MUST cheaply. | 1 h | closes M8 |
+| M7 | **The verifier (§5.5).** Separate *intentional divergence* (a consequence the player chose — expected) from *accidental contradiction* (drift nobody chose — an error). A verifier that flagged every divergence would be useless here, because deliberately breaking canon is the entire genre. | 1.5 h | closes M7 |
+| T6 | **Free-form intent router (snap-to-branch).** Embed the player's typed intent, match it to a mined branch, route to the pre-validated branch; below threshold, generate a candidate and verify *before* applying (also closes OD-4's degradation path). **Blocked on M4** — there is nothing real to snap to yet. | 2 h | beats 4, 5 |
+| T9 | **API + frontend rewire.** The demo is terminal-only. The frontend's `CanonClient` still targets the superseded single-flip contract (`getMoments`/`postDivergence`/`postRegenerate`) while the backend now serves a turn loop. Keep the mock alive as the stage fallback. | 3 h | presentability |
+| — | **A real embedder behind `EmbedderPort`.** Measured on the full novel: verbatim recall@5 **8/8**, but natural-language retrieval is near-random — exactly as `HashingEmbedder`'s own docstring predicts. The guard held perfectly (**0 leaked** of 20 hits at ch3). `fastembed` (ONNX, offline, no torch) is the fit; it is also what `notebook-lm-clone` used. | 1 h | retrieval quality |
 
-**Blocking decisions** (`demo.md` §7): **D-1** where is the Dexter novel PDF · **D-2** snap-to-branch vs
-true free-form (recommend snap-to-branch) · **D-3** novel vs screen canon (OD-2, still open).
+**Note on T1.** Superseded rather than done: the maintainer established that **Claude Code is the
+model** for this project, so scenes are authored in-session and replayed deterministically via
+`ScriptedLLM` — which is also the demo-safe choice, since a stage run cannot then die to a timeout, a
+rate limit, or an unlucky sample. `prompts/render_scene/` v1 **and** v2 exist as versioned assets. A
+live provider adapter remains a one-file swap behind `LLMPort` if a key ever lands.
+
+**Still-open decisions** (`demo.md` §7): **D-2** snap-to-branch vs true free-form (recommend
+snap-to-branch) · **D-3** novel vs screen canon (OD-2) — **this bites the moment M4 starts**, because
+our canon is novel-based and fan fiction is predominantly screen-based. **D-1 is closed** (the PDF is
+at `data/external/Darkly-Dreaming-Dexter-1.pdf`).
+
+⚠ **`research/Pocket FM Hack/` is a nested git repo.** Leave it untracked. `git add`-ing it creates a
+mode-160000 gitlink — precisely the mess this session had to unpick for the two worktrees.
 
 ## Product phase ordering (session 5, 2026-07-25) — superseded in ordering by the queue above
 

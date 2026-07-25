@@ -43,19 +43,54 @@
 - **`demo.md` is the scope fence (session 7).** Nine demo beats, tasks T0–T10, a pre-decided cut ladder,
   and an explicit not-building list. **~18 h of work against ~14 h of runway** — read the cut ladder
   before adding anything.
-- **Verification:** `make check` is **GREEN** — exit code 0, **479 passing** (up from 447).
+- **▶ THE DEMO RUNS.** `uv run story-engine play --auto --turns 5 --replay-as deborah` — five choices
+  against the real novel, then the same branch re-rendered as Deborah. **No API key required.**
+  Read **`demo.md` §0** before anything else.
+- **Verification:** `make check` is **GREEN** — exit code 0, **497 passing** (up from 447).
   INIT-01…05 + HARDEN-01…04 + FANFIC-01…07 + KB-01/07/08/09/10/11/12 + **INGEST-01** pass.
   HARDEN-05 deferred (deprioritised below product work).
-  **The playable layer now exists** (session 7b): `PROP-01`, `PLAY-01` and `DEMO-01` pass, which
-  covers M2/M3/M6/M7 and S3 in substance. The `M*` ids themselves stay `passes:false` until their own
-  verification commands are repaired — several are written as `-m unit -k …`, and `pyproject.toml`
-  registers only `slow`/`integration`/`e2e`, so **there is no `unit` marker and those commands select
-  nothing** (AUD-M3). That is a harness bug, not a build gap; fixing it is T10.
-- **Still genuinely missing:** a real LLM adapter (rendering runs on `ScriptedLLM`), the Branch
-  Oracle bound to canon moments so options come from mined fan fiction rather than the authored table
-  (M4/T5), free-form input (T6), and the frontend rewire (T9).
+  **33/40 features pass.** `M1, M2, M3, M5, M6, S3` flipped this session, each earned by its own
+  re-pointed verification command. T10 fixed the harness bug that made them unflippable: `-m unit`
+  was never a registered marker, so those commands selected **nothing**; `tests/conftest.py` now
+  derives the tier from the directory a test lives in.
+- **Deliberately left `false` even though their commands pass** — a green command written by the same
+  session is not evidence the spec is met:
+  - **M8** — uniform schema is real, but **traits and goals still do not exist** on the character record.
+  - **M7** — the receipt works, but **§5.5's verifier does not exist**, so nothing separates
+    *intentional divergence* from *accidental contradiction*. "Consistency enforced" is not yet true.
+- **The one honesty gap that matters: M4.** §5.2 and the pitch both claim choices come from
+  divergences real fan fiction wrote. They currently come from an authored table
+  (`resources/dexter_demo.py`); only the `source_work_id` values are genuine. **`data/` is empty** —
+  the corpus lived in the deleted worktree and needs a re-harvest. This is the top of the next queue.
+- **Also still missing:** free-form input (T6), the frontend rewire (T9), and a real embedder —
+  measured on the full novel, verbatim recall@5 was 8/8 but natural-language retrieval is near-random,
+  exactly as `HashingEmbedder`'s own docstring predicts. The guard held perfectly (0 leaked of 20 hits
+  at ch3). `fastembed` behind `EmbedderPort` is the fix.
 
 ## Completed
+### Session 7c (2026-07-25) — the rest of the cast reacts (M6 ✅)
+- [x] **M6 — derived directives.** The renderer now receives a directive for every *other* cast
+      member, closing the half of §4.4 that was missing:
+      `Sergeant Doakes — tension toward dexter: 2/5. Does NOT know: <clauses>.`
+      Added `prompts/render_scene/v2.jinja`; **v1 kept intact beside it** per `prompts/README.md`
+      (never edit a shipped version in place).
+      **Computed at render time, never stored** — storing rich state for the protagonist and thin
+      directives for everyone else would hardcode a hierarchy and turn S3 into a rewrite.
+      **The anti-leak property is structural, not instructional:** a directive is
+      `actor_facts − their_facts`, so it can only ever name facts the actor already knows and is
+      *incapable* of surfacing a third party's secret. Asserted on the real assembled prompt —
+      after Doakes learns the secret, Deborah's replay prompts still never contain "Dark Passenger".
+      **Tension is derived, not authored:** measured live, Doakes reads **2/5** while Rita reads
+      **3/5** — Doakes is *closer* to Dexter's picture because he was in the parking lot, and nobody
+      edited a character sheet to make that true.
+- [x] **Two test corrections, both cases of the engine being right and the assumption wrong.**
+      (1) An assertion expected Rita at 5/5; she reads 3/5 because she still sees the **public**
+      facts — untracked canon is visible to everyone once revealed. The test now asserts the
+      *relationship* (whoever was in the room reads closer) rather than a guessed constant.
+      (2) A proxy for "how much can Deborah see" used `citations` (capped at `CITATION_LIMIT`) and
+      `withheld_count` (moves for its own reasons); neither is faithful, so the flat spot is now
+      measured against `visible_to` directly.
+
 ### Session 7b (2026-07-25) — **the demo runs end to end** (PROP-01, PLAY-01, DEMO-01 ✅)
 > The engine stopped being a substrate and became a product this session. `uv run story-engine play
 > --auto --turns 5 --replay-as deborah` plays five choices against the real novel and closes on the
