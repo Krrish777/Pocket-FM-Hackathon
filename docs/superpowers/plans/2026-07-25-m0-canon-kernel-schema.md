@@ -471,8 +471,21 @@ def test_narrated_fact_must_not_name_a_speaker() -> None:
         _fact(assertion_mode=AssertionMode.NARRATED, attributed_to="marcus")
 
 
-def test_knower_scope_must_not_be_empty() -> None:
-    """A fact nobody knows cannot be retrieved or reasoned about."""
+def test_untracked_knower_scope_falls_back_to_audience_reveal() -> None:
+    """Most facts never need per-character scope; None means "not tracked".
+
+    Evidence: only 2 of ConStory's 19 consistency-error subtypes are epistemic, and they
+    sit in a category worth ~3.5% of measured error density. Universal knower tracking
+    buys little and costs a 32.6% false-extraction rate (CHIRON), whose failure mode is
+    FALSE BLOCKS on legitimate dialogue. Scope is populated only for typed secrets/lies.
+    """
+    fact = _fact(knower_scope=None, revealed_at=3)
+    assert fact.is_visible_to("anyone_at_all", 5) is True
+    assert fact.is_visible_to("anyone_at_all", 2) is False
+
+
+def test_tracked_knower_scope_must_not_be_empty() -> None:
+    """If scope IS tracked, an empty set is a bug — use None to mean untracked."""
     with pytest.raises(ValidationError):
         _fact(knower_scope=frozenset())
 
@@ -576,9 +589,14 @@ class Fact(DomainModel):
         default=None, description="Required iff assertion_mode is ATTRIBUTED."
     )
 
-    knower_scope: frozenset[str] = Field(
+    knower_scope: frozenset[str] | None = Field(
+        default=None,
         min_length=1,
-        description="Entity ids plus the AUDIENCE/NARRATOR sentinels that know this.",
+        description="Entity ids plus AUDIENCE/NARRATOR sentinels that know this. "
+        "None = NOT TRACKED: visibility is governed by revealed_at alone. Populate only "
+        "for typed secrets, lies and deliberately withheld information — universal "
+        "per-character tracking is not evidence-supported and its false-extraction rate "
+        "produces false blocks on legitimate dialogue.",
     )
     provenance: Provenance
     confidence: float = Field(ge=0.0, le=1.0)
@@ -606,7 +624,13 @@ class Fact(DomainModel):
         return self.revealed_at is not None and self.revealed_at <= chapter
 
     def is_known_by(self, knower: str) -> bool:
-        """Whether this knower holds the fact at all."""
+        """Whether this knower holds the fact.
+
+        An untracked fact (`knower_scope is None`) is held by everyone: its visibility is
+        governed by telling time alone. Only typed secrets and lies carry a scope.
+        """
+        if self.knower_scope is None:
+            return True
         return knower in self.knower_scope
 
     def is_visible_to(self, knower: str, chapter: ChapterIndex) -> bool:
