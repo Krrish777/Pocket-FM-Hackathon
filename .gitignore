@@ -54,3 +54,5 @@ Thumbs.db
 .idea/
 .vscode/
 temp/
+# Agent worktrees (never tracked — they are separate checkouts)
+.claude/worktrees/
