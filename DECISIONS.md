@@ -235,3 +235,152 @@
   as the two existing exclusions.
 - **Rejected:** fixing the violation in the other session's worktree (not our code, and it would recur on every
   edit they make).
+## 2026-07-25 (session 6): Work split across two parallel sessions; KB lives in a worktree
+- **Reason:** The KB component spec and the product/problem-statement decisions were interleaving and blocking
+  each other. Split them: **this branch owns the Knowledge Base component only**; a parallel session in the main
+  directory owns the product track (which problem statement, who the buyer is, corpus, fan-fiction semantics).
+- **Shape:** git worktree `.claude/worktrees/knowledge-base`, branch `worktree-knowledge-base`, so the two
+  sessions never contend for the working directory.
+- **Seeding note:** a worktree starts from the last commit, so `PRD-KNOWLEDGE-BASE.md` (untracked) and main's
+  three uncommitted edits (`DECISIONS.md`, `.gitignore`, `pyproject.toml`) were copied across. Without this, a
+  later merge would have looked like it was reverting the session-5 Databricks entry.
+- **Rejected:** a plain in-place branch — with two live sessions in one directory, branch switching would
+  corrupt whichever session wasn't looking.
+
+## 2026-07-25 (session 6): The novelty claim is falsified — reposition from representation to ENFORCEMENT
+- **Finding:** [Narrative World Model, arXiv 2607.05577](https://arxiv.org/abs/2607.05577) (submitted
+  2026-07-06) is authored **entirely by PocketFM**, including **Vasu Sharma, their Head of AI** — one of the
+  named executives behind this hackathon. The vault cited this paper five times without noticing the
+  affiliation.
+- **Consequence:** NWM already implements all three capabilities `Knowledge-Base/10 - Comparison vs Existing
+  Systems` claimed nobody had — character knowledge/unknowns (epistemic scope), plot/promise threads with
+  open/closed status and payoff (commitment lifecycle), and a retrieval "causal restriction" to chapters ≤
+  checkpoint (chapter-safe/spoiler-safe retrieval). **The sentence "not one row above the Kernel carries a
+  single ✅ in those three columns" is false**, and it was the load-bearing sentence of the novelty argument.
+- **What survives, from NWM's own limitations section:** *no generation-time enforcement, no verifier,
+  conditioned generation remains future work*; English-only; the production backend and internal corpus are
+  proprietary; no public code (only a Project Gutenberg benchmark is released).
+- **Decision:** reposition. NWM answers questions about **finished** text; the Canon Kernel governs text
+  **being written**. Cite NWM as validation — it is far stronger evidence than any of the 24 papers in the
+  vault — and quote its limitations as the gap. Adopt its 7 record types rather than re-deriving our own.
+- **Rejected:** ignoring it (a judge from their own AI team would raise it first); claiming novelty on
+  representation (false, and checkable in one search).
+
+## 2026-07-25 (session 6): The KB operates a CLOSED LOOP, not read-only memory
+- **Reason:** follows directly from the entry above — enforcement is the unclaimed half. The KB owns write,
+  read, **and check**: assemble scoped canon → generator drafts → verify draft against canon → flag with a
+  provenance citation → commit new facts.
+- **Consequence:** a larger component boundary than a memory store. The verifier is IN the Knowledge Base,
+  not a sibling that consumes it.
+- **Rejected:** read-only memory (that is NWM, already built, by them, better).
+
+## 2026-07-25 (session 6): Facts are TRI-temporal — story time, telling time, record time
+- **Reason:** two axes cannot express *"true in the world, but the audience has not learned it yet"*, which is
+  the entire basis of the spoiler guard. Story time (`valid_from`/`valid_to`) answers "who was alive at
+  episode 40"; telling time (`revealed_at`) powers the guard; record time (`recorded_at`/`superseded_at`)
+  makes retcons auditable instead of corrupting.
+- **Precedent:** NWM separates event order from reveal order; Fowler's bitemporal history supplies record time.
+  No single source presents all three together — ⚠ the combination is our synthesis.
+- **Rejected:** single timestamp (loses history); bitemporal only (loses telling time, so no spoiler guard).
+
+## 2026-07-25 (session 6): `revealed_at` is populated BY CONSTRUCTION; the real bug is assertion mode
+- **Reason (researched):** NWM's method is deflationary — the extractor reads chapter N's accepted prose and
+  stamps every emitted record with `revealed_at = N` plus an evidence span. There is no reveal-order
+  classifier anywhere in the literature. Redefining the field as *"the first chapter in which the text asserts
+  this proposition on-page"* makes first-mention the **definition** rather than a heuristic.
+- **Error asymmetry (the deciding argument):** `revealed_at` too LATE is harmless (a usable fact is withheld —
+  invisible to the audience); too EARLY is the spoiler leak the feature exists to prevent. Only pay for
+  failure modes that push early.
+- **The three dangerous cases are one bug:** hearsay, a character lying, and dream/hypothetical content all
+  push early because the extractor flattens an *attributed or non-actual* proposition into a bare world fact
+  ("Marcus said the vault was empty" → `vault_empty = true`). **Fix is a schema change, not a temporal model:**
+  add `assertion_mode: narrated | attributed | non_actual`, `attributed_to`, and `evidence_span`. Cost: three
+  fields in one extraction prompt. Bonus: this is also what makes lies and dramatic irony *writable*.
+- **Also adopted:** decompose to atomic propositions (handles partial reveals for free); layer a
+  position-filtered raw-text retrieval under the fact-level guard so a KB miss cannot leak via raw context.
+- **Declared out of scope (each pushes in the safe direction or costs more than it saves):** unreliable
+  narration, implied-before-stated, reader-inference modelling.
+- **Rejected:** building a reveal-order classifier; CFPG-style multi-verifier rubric filtering (that is
+  dataset-curation cost at roughly 4 pairs per book recall).
+- ⚠ **Carry forward:** no published work validates reveal-position extraction accuracy — NWM stores the field
+  and benchmarks downstream QA but never checks the field itself. Hand-labelling ~50 facts across two chapters
+  would give us more validation than the literature has.
+
+## 2026-07-25 (session 6): Component PRD written before any KB code
+- **Shape:** `PRD-KNOWLEDGE-BASE.md` — 28 sections; 16 functional + 9 non-functional requirements each with
+  priority, rationale, dependencies, acceptance criteria and verification method; 7 numbered assumptions;
+  6 open decisions routed to the parallel session; 6 milestones with a stated cut-line; a per-milestone test
+  matrix across 10 test types; and an engineering-readiness verdict.
+- **Method under unresolved ambiguity:** rather than guess, every open item is a labelled assumption with its
+  blast radius, and the one place the schema genuinely forks (fan-fiction as fork vs. tier, OD-1) is specified
+  in **both branches** so the parallel session's answer slots in without a rewrite.
+- **Readiness verdict:** NOT READY overall; **READY for M0–M2**. The blocker is R-1 — extraction quality caps
+  every downstream guarantee — and M1 exists specifically to measure it before anything is built on top.
+- ⚠️ **R-1 was DOWNGRADED the same day** — see the extraction-architecture entry below.
+
+## 2026-07-25 (session 6): A-5 resolved — knower_scope is populated by VISIBILITY ROUTES, not by inference
+- **Reason (researched, 5 agents):** asking an LLM to track who-knows-what in context does not work and the
+  numbers are unambiguous. [FANToM](https://arxiv.org/abs/2310.15421): GPT-4 answers *"does X know this?"* at
+  90.3% but **cannot list the knower set (48.2%)**, and is self-consistent across framings only **26.6%** of
+  the time. [ExploreToM](https://arxiv.org/abs/2412.12175): 9% on adversarially-found stories. Reasoning
+  models do not fix it. What *does* work, across four independent lines (SymbolicToM +38pts, TimeToM +44.7%
+  on FANToM, EnigmaToM, PDDL-Mind 80.0% vs 55.3% SOTA): **extract explicit state, then query it.**
+- **Adopted mechanism — [REVERIEMEM](https://arxiv.org/abs/2606.25632)'s four visibility routes**, the only
+  published existence proof: (1) direct experience, (2) observation/presence in scene, (3) organisational
+  propagation, (4) world-level common knowledge. Plus a three-way scene roster —
+  **present-active / present-silent / only-referenced** — because co-occurrence is not presence
+  (Labatut & Bost's survey is explicit that bystanders and absent-mentions pollute co-occurrence graphs).
+  Measured: KBF 73.3%, 68.1% on visible facts, **81.2% on correctly refusing invisible ones**; ablating the
+  visibility layer collapses it to 17.8%.
+- **Explicit knowledge-transfer events are an OVERRIDE, not the baseline.** Emit
+  `KnowledgeTransfer{source, recipients[], fact_id, modality, veracity}` only where the text states or
+  strongly implies it — high precision, low recall by design. Most of what a character knows was never the
+  subject of a stated transfer, so explicit-only leaves knower sets nearly empty. But it is the only route
+  that can carry a **lie**, which presence structurally cannot.
+- **Also store NEGATIVE facts** (`X does not know Y`) — refusal is the cheaper and more reliable half.
+- **Entity identity comes from a HUMAN-SUPPLIED ROSTER, not automatic coreference.**
+  [BOOKCOREF](https://aclanthology.org/2025.acl-long.1197/): 67 CoNLL-F1 on full books vs 82 windowed, and
+  "the Stranger = the King" is exactly the long-range deliberately-withheld case that fails. A canonical
+  name + alias list turns open clustering into closed-set classification — **and becomes the `enum` for every
+  entity field in the extraction schema, making hallucinated entities structurally impossible.** Highest-value
+  single trick found.
+- **Calibration to hold us honest:** realistic per-fact knower-set accuracy is **65–80%**. Addressee
+  extraction — the primitive "who told whom" depends on — tops out at **73.58%** in the only paper that has
+  measured it. Anyone claiming 95% is measuring only explicit named in-scene attributions, or not measuring.
+- **Rejected:** presence-only (over-attributes bystanders, under-attributes offscreen relay, cannot represent
+  lies); explicit-transfer-only (near-empty knower sets); LLM-in-context tracking (48.2%); symbolic planners
+  — Sabre's `OBS(a,c)` computed-knower-set idea is worth stealing, but 4 characters / 61 fluents cost
+  **6.2 hours / 105M nodes**, so steal the idea and not the machinery.
+
+## 2026-07-25 (session 6): Extraction is PARALLEL per chapter, never chained — and R-1 is downgraded
+- **Reason:** the natural design (extract chapter N conditioned on accumulated canon) is wrong on both axes.
+  **Cost:** conditioning forfeits the Batch API (asynchronous, no ordering guarantee) *and* ~4.5× the input
+  tokens ≈ **~9× the stateless-batched cost**. **Quality:** it is actively worse —
+  [self-conditioning](https://arxiv.org/abs/2509.09677) (models err more when context holds their own prior
+  errors, and it does not scale away); [multi-turn collapse](https://arxiv.org/abs/2505.06120) (−39% mean,
+  but **+112% unreliability** — the mean hides it, so evaluate with repeated runs and variance);
+  [BooookScore](https://arxiv.org/abs/2310.00785) measuring incremental < hierarchical across 100 books;
+  [ATOM](https://arxiv.org/abs/2510.22590) getting **+33% run-to-run stability** from parallel atomic merge.
+- **Shape:** extract each chapter independently against the fixed roster; reconcile in a merge tree. The only
+  sequential step is cross-chapter knower propagation, done as a **deterministic graph operation over
+  extracted records** — never as an LLM prompt containing prior state.
+- **R-1 downgraded from Critical.** NWM re-ingested Graphiti *with their own extractor* and it barely moved
+  (0.585 vs 0.574, **p=0.89**). The gap was representational, not extractive. M1's precision gate stays
+  useful as calibration but is no longer the project's binding risk.
+- ⚠️ **The typed ontology is NOT the differentiator either.** NWM's own ablations: stripping type labels
+  scored 0.898 → **0.909** (p=0.62); flattening to prose → **0.926** (p=0.12). What carries the result is
+  **atomic decomposition + query-conditioned retrieval** (serializing the same state as a dump scores 0.358
+  vs 0.893 querying it, with 83% of misses being "present but past truncation"). Our PRD over-weights the
+  schema; **retrieval is where the win is.** The schema still earns its place as the substrate that makes
+  deterministic querying possible — it is just not the thing to pitch.
+- **Two unclaimed measurement gaps, both cheap (<$5):** no public benchmark of per-fact knower sets over real
+  prose; no drift-vs-chapter-count curve for narrative KB construction.
+
+## 2026-07-25 (session 6): Standing commit permission scoped to the KB worktree branch
+- **Reason:** subagent-driven development is built on commits — review packages are `git diff BASE..HEAD`
+  over commit ranges, the ledger records SHAs, and post-compaction recovery trusts `git log`. The plan's
+  no-commit stance made the machinery unusable.
+- **Granted (user, 2026-07-25):** implementers may commit **on `worktree-knowledge-base` only**. `main` is
+  never touched and nothing is pushed; the maintainer gates the merge instead of each commit.
+- **Also ruled:** the plan's `# type: ignore[arg-type]` on the test-builder dict-merge stands as a deliberate
+  choice; reviewers are told it is ruled, so the fix loop does not churn on it.
