@@ -12,13 +12,82 @@
   actually learned. Track: P1 Story Time Machine + Infinite Story Universe.
 - **Runway:** 24–36h, 2–4 people. Parallel sessions are live in `.claude/worktrees/`
   (`reddit-fanfic-scraper` = the EXT-1 ingestion dependency; `knowledge-base`).
-- **Last commit:** `8d70e1b` "regular updates" — created by a **parallel session** that swept the shared
-  index (164 files, incl. this session's 4 doc files). See Known Issues.
-- **Verification:** `make check` is **GREEN** — exit code 0, **7 passing** (1 unit, 4 integration real-SQLite,
-  2 e2e). INIT-01…05 + HARDEN-01…04 pass. HARDEN-05 deferred (deprioritised below product work).
+- **EXT-1 (scraper branch) STATUS: delivered, INDEPENDENTLY AUDITED, and closed for the hackathon.**
+  `FANFIC-01…07` all pass — fandom-targeted scraper, Branch Oracle (canon decision points with 2–4
+  options), OD-2 canon discriminator, a written EXT-1 contract, and (session 6) an IV&V pass that found
+  and fixed **4 real defects**. Corpus artifact is schema **1.2**. Per `project_context.md` §5.2 its
+  deliverable is **branch structure, not prose** — fan fiction supplies *what the options are* and is
+  never reproduced. **Do not invest further here**; it produces what the playable layer needs.
+- **Last commit:** `2a25444` "regular updates" (16 files, +715/−145) — the IV&V fixes plus 5 files staged
+  by a prior session. Preceded by `8d70e1b`, created by a **parallel session** that swept the shared
+  index. See Known Issues on the shared git index.
+- **Verification:** `make check` is **GREEN** — exit code 0, **286 passing** (up from 237), stable across
+  5 consecutive runs including 2 in randomized order. INIT-01…05 + HARDEN-01…04 + FANFIC-01…07 pass.
+  HARDEN-05 deferred (deprioritised below product work).
   **All product features M1–M8 / S1–S3 are `passes:false` — nothing product-side is built yet.**
 
 ## Completed
+### Session 6 (2026-07-25) — IV&V audit of the scraper (FANFIC-07): 4 defects found and fixed
+> Run under "assume the scraper is incorrect until evidence proves otherwise." Verification session, not
+> a feature session. Every finding below was proven by **executing** code, not by reading it.
+
+- [x] **Defect 1 — `strip_boilerplate` was deleting real narrative prose.** Every CTA word is also an
+      ordinary English verb; patterns matched any line merely *starting* with one. Measured: 5 of 5
+      realistic prose lines destroyed (`"Like a knife, the cold cut through him."`). The `read on <host>`
+      pattern was unanchored too. **This was corrupting the knowledge base's direct input.** Fixed: a CTA
+      now needs `please` or a second reader-directed marker.
+- [x] **Defect 2 — chapters silently dropped, works shipped truncated with no marker.** Live evidence:
+      `wattpad:864850` shipped **starting at chapter 2**; `390229723` had gaps at 6 and 11. Fixed by
+      **corpus schema 1.1 → 1.2**, adding `chapters_dropped {non_prose, duplicate, is_partial}`.
+- [x] **Defect 3 — the on-disk manifest contradicted the CLI.** `JsonlCorpusSink` recomputed branch
+      points with its own default, ignoring `--max-branch-options`: console showed 2 options, the
+      artifact contained 3. Fixed by threading the ceiling through `CorpusSinkPort`.
+- [x] **Defect 4 — `<script>`/`<style>` bodies leaked into prose.** Found by a *new* test; tag stripping
+      leaves those elements' contents behind as story text. Fixed in `http_util.html_to_text`.
+- [x] **Test suite 237 → 286.** New `tests/unit/adapters/test_http_util.py` (22 tests) covers the retry
+      engine, which had **zero** tests despite every scraper request passing through it. New classes:
+      `TestMultiChapterIntegrity`, `TestMultiSourceResilience`, `TestTruncationProvenance`,
+      `TestBoilerplateDoesNotEatProse`.
+- [x] **Killed a false-positive test.** `test_respects_max_stories` asserted `len(stories) <= 2` — also
+      satisfied by a harvester returning **zero**. Now `== 2`.
+- [x] **Root-caused the blind spot:** service fixtures defaulted to `chapters=1` per work, making an
+      entire bug class *structurally unreachable*. Real works are multi-chapter (43 chapters / 4 works).
+- [x] **Contract doc updated to 1.2**, including the previously-unwritten fact that chapter dedup is
+      **run-scoped, not work-scoped** (work B loses a chapter that work A had first).
+
+### Session 5b (2026-07-25) — Branch Oracle + OD-2 discriminator (FANFIC-04..06)
+- [x] **Branch Oracle (FANFIC-04)** — `domain/fanfic_premise.py` + `domain/prose_score.py` (pure, stdlib).
+      Mines fan fiction into **canon decision points with 2-4 player-facing options**, which is
+      `project_context.md` section 4 step 3. Live Titanic: `character_survives:jack` support=3 -> 4 options
+      (1 canon baseline + 3 distinct alternates from 3 independently authored works). Option labels are
+      synthesized from the taxonomy and **never copied** from author text - a test asserts it (section 5.2).
+- [x] **OD-2 discriminator (FANFIC-05)** — wiki ENTITY VOCABULARY, deliberately *not* a canon KB.
+      314 Dexter entities: **novel 68 / screen 223 / both 9 / unknown 14**, 561 relationships, 2,785
+      attributes. Novel and screen characters are SEPARATE wiki pages, so the split is machine-readable.
+- [x] **EXT-1 contract (FANFIC-06)** — `docs/EXT-1-scraper-output-contract.md` closes OD-3.
+- [x] **AO3 second source** — `HuggingFaceAO3Source`; AO3 labels distinguish canons
+      (`Dexter Series - Jeff Lindsay` vs `Dexter (TV)`), the only source that can.
+- [x] **Full chapter depth** — `--max-chapters` default 500. Dexter went 13 -> **43 chapters / 55,769 words**.
+- [x] CLI: `harvest` (new flags), **`branches`**, **`wiki-index`**.
+
+### Session 5 (2026-07-25) — in-event: fan-fiction scraper (FANFIC-01, FANFIC-02)
+- [x] **Evidence sweep first** (4 parallel research agents + live network probes) established, against
+      measurements rather than assumption, that Reddit does not hold fandom fanfic prose and that **Wattpad**
+      does and is reachable keyless. Verified: `api/v3/stories` (fandom-searchable metadata + `parts[]`) and
+      `apiv2/storytext` (chapter prose). Recorded in `docs/superpowers/specs/2026-07-25-fanfic-harvest-design.md`.
+- [x] **Domain (pure, stdlib-only):** `domain/models/fanfic.py` (`FandomQuery`, `StoryRef`, `ChapterRef`,
+      `Chapter`, `HarvestedStory`) + `domain/fanfic_quality.py` — prose gate (`words>=500` AND
+      `quotes_per_1k>=5`, both empirically measured), alias relevance, boilerplate stripping, SHA-256 dedup.
+- [x] **Ports:** `FanficSourcePort` + `AliasExpanderPort` (`ports/fanfic_source.py`), `CorpusSinkPort`
+      (`ports/corpus_sink.py`) — so a new host is one adapter file, no pipeline change.
+- [x] **Adapters:** `WattpadSource`, `WikipediaAliasExpander` (redirects → aliases incl. universe terms),
+      `JsonlCorpusSink` (versioned schema + manifest), shared `http_util` (policy-compliant UA, backoff, HTML→text).
+- [x] **Service + CLI:** `services/fanfic_harvest.py` (`FanficHarvester` + `HarvestReport` counting every
+      rejection) and `story-engine harvest "<novel or film>"`.
+- [x] **37 unit tests** for the feature (44 total). `make check` GREEN; mypy strict clean on 55 files.
+- [x] **Live verification:** `harvest "The Witcher"` → 18 aliases, 1 work / 3 chapters / 4,073 words of real
+      Witcher prose, written to gitignored `data/raw/fanfic/the-witcher/`.
+
 - [x] **Conventions system** — migrated (session 4) to native **`.claude/rules/`**: 7 path-scoped rules that
       auto-load by file type. Replaced the hand-rolled PreToolUse hook; one `python-conventions` skill kept.
 - [x] **Research** (8 cited artifacts) in top-level `research/` + `research/llms.txt` source index (moved OUT
@@ -110,6 +179,41 @@
 - **No product code written this session** — by design; this was an elicitation session.
 
 ## Known Issues
+- **⚠ Local corpora are at MIXED schema versions.** `./init.sh` now prints this at session start; as of
+  session 6: `dexter` **1.2**, `titanic` **1.1**, `the-witcher` **1.0**. A consumer walking
+  `data/raw/fanfic/*` will hit records *without* `chapters_dropped` and must not assume its presence.
+  Corpora are **not** migrated in place — re-harvest a fandom to bring it to the current schema.
+  (Corpus files are overwritten per run and `data/raw/` is gitignored, so this is cheap.)
+- **⚠ Branch points have `support: 1` — the "many humans branched here" claim does NOT hold at this
+  corpus scale.** Every `premise_group` in the real Dexter harvest has `size: 1`. The demo is unaffected
+  (canon-stands + one alternate is a legal 2-option choice), but **KB code written assuming multi-member
+  groups will get empty results.** Tell the KB team explicitly.
+- **Prose-gate thresholds are borrowed from the wrong problem (IV&V F-7, open).** `words >= 500` AND
+  `quotes_per_1k >= 5` were measured for *Reddit prose-vs-discussion*, then applied per-chapter to
+  Wattpad, where that problem does not exist. They rejected 7 chapters across a 4-work harvest (~14%),
+  including one work's opening chapter. Now *visible* via `chapters_dropped`, but not changed.
+  **Tunable without code:** `--min-words 200 --min-quotes-per-1k 0`. Note this systematically drops
+  dialogue-free introspective chapters — which matters for Dexter's first-person interiority.
+- **`alias_expander.py` (306 lines) has ZERO tests.** `--kind` disambiguation is load-bearing (see the
+  next item) and entirely unverified. Wattpad `search()` round-robin/pagination is also untested.
+- **`get_with_retry` ignores `Retry-After` on 429**, and `_pause()` is skipped on the failure path — so a
+  run that hits errors is *less* polite to the host than one that succeeds.
+- **`--kind` is effectively required for ambiguous titles.** Wikipedia disambiguates films by YEAR, so
+  `harvest "Titanic"` without `--kind movie` resolves to the SHIP. Always pass `--kind movie|novel|series`.
+- **Yield is fandom-size dependent.** Titanic hit the 10-work cap; Dexter yielded 4 — the Dexter fandom is
+  simply smaller on Wattpad. Lower `--min-reads`/`--min-votes` for niche fandoms.
+- **Short generic aliases can over-match.** Resolution surfaces character names like `Arthur`, `Mal`,
+  `Ranger` (Inception/Interstellar). The 2-distinct-hit rule mostly covers it, but a work naming the fandom
+  plus one common first name could slip through. Watch this on fandoms with generic character names.
+- **Only exact-duplicate dedup.** SHA-256 on normalized text; near-duplicate reposts are NOT caught yet
+  (MinHash is on the backlog).
+- **Fan fiction is NOT on Reddit** (measured 2026-07-25, and the reason the scraper targets Wattpad): fandom
+  subreddits have a **median selftext of 141–620 chars** and r/FanFiction's Rule 1 bans posting fic text
+  outright. AO3 + fanfiction.net are **Cloudflare-blocked** from this machine. Reddit's Data API now needs
+  manual approval (Responsible Builder Policy) and bars ML-training use. Do not re-litigate this without new
+  measurements — see the spec's evidence tables.
+- **Wikimedia UA policy is load-bearing.** A User-Agent without a contactable URL/email gets **403**, silently
+  disabling alias expansion (which then guts recall). Set `STORY_ENGINE_CONTACT` to a real contact.
 - **L3 E2E is partial**: the full `premise → episode → persist` request path is NOT yet E2E-tested — the LLM
   adapter is deferred to the event brief and `StubLLM.generate` raises by design. Today's E2E proves boot +
   schema init only (tracked in `tests/README.md` + HARDEN-02).
@@ -138,10 +242,17 @@
    on it. Spec: `project_context.md` §4.4.
 2. **Resolve OD-1 (fork vs. tier)** before the storage layer is written. Recommendation: **fork** — a tier
    model mislabels every deliberate divergence as an error, which is fatal for fan-fiction.
-3. **Get the EXT-1 contract from the scraper session (OD-3)** — highest-risk unknown in the project; everything
-   downstream of ingestion depends on a shape nobody has written down. Then fill `project_context.md` §9.
-4. **Resolve OD-2 (novel vs. screen canon)** *before* any fan-fiction is ingested. Our KB is novel-based;
-   Dexter fan-fiction is largely screen-based — a silent corruption path.
+3. ~~**Get the EXT-1 contract from the scraper session (OD-3)**~~ **DELIVERED** —
+   `docs/EXT-1-scraper-output-contract.md` answers all four §9 checkboxes and documents corpus schema 1.1 +
+   wiki-index schema 1.0 field-by-field. **Remaining ask on the KB side:** expose a resolvable canon-moment id
+   (`(chapter, order_in_chapter)` or a documented `Scene.id`) so branches can cite a SCENE, not just entities.
+   That is the largest remaining integration gap — see that doc's §6.
+4. **Resolve OD-2 (novel vs. screen canon)** — now DECIDABLE rather than a guess. The scraper branch built a
+   discriminator: 314 Dexter wiki entities labelled **novel 68 / screen 223 / both 9 / unknown 14**, and AO3
+   labels split canons directly (`Dexter Series - Jeff Lindsay` vs `Dexter (TV)`).
+   **Decision-forcing finding: 3 of the 5 §6.3 cast have different NOVEL names — Debra→Deborah Morgan,
+   Doakes→Albert Doakes, LaGuerta→Migdia LaGuerta** — and our best Dexter branch (*Set Free*) is screen-canon.
+   Pick a canon deliberately; the data is in `data/raw/wiki_index/dexter/`.
 5. **M5 — per-character epistemic memory** (depends on M8). Acceptance: a character who did not learn a fact
    at step 4 still does not know it at step N, for all N > 4.
 6. Then **M1 → M4 → M2 → M3 → M6 → M7**. Only after every M passes: **S3** (replay-as-Debra, the closing beat),

@@ -12,6 +12,7 @@ dependencies = [
     "uvicorn[standard]>=0.30",
     "typer>=0.12",
     "sqlmodel>=0.0.22",  # ORM for the SQLite persistence adapter (wraps SQLAlchemy + Pydantic)
+    "httpx>=0.27",  # HTTP client for the fanfic-host adapters (runtime, not just tests)
     # LLM SDK: add the one you use, e.g. "anthropic>=0.40" or "openai>=1.50"
     # Structured output: "instructor>=1"
     # Memory/RAG lane: "mem0ai>=0.1" (associative recall only — not the canonical store)
@@ -58,6 +59,9 @@ ignore = ["E501"]  # line length handled by the formatter
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401", "E402"]
 "tests/**/*" = ["S101"]
+# Typer declares CLI options as call-valued defaults (`typer.Option(...)`); B008 is a false
+# positive against that API, and only for the CLI adapter.
+"src/story_engine/cli/*.py" = ["B008"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["story_engine"]
