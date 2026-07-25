@@ -2,10 +2,18 @@
 
 Two properties matter here and both are about containment, not prose quality: it may not recite the
 player's upcoming options, and it may not invent knowledge that was not in the assembled context.
+
+Also covers the intent-routing seam (Task 5b): `ScriptedLLM` must answer an `interpret_intent`
+prompt with deterministic JSON, and this is proved by driving the real `IntentRouter` against it —
+not by calling `ScriptedLLM` directly — because the bug this fixes was exactly the two not
+interoperating.
 """
 
 from story_engine.adapters.outbound.file_prompt_store import FilePromptStore
 from story_engine.adapters.outbound.scripted_llm import ScriptedLLM
+from story_engine.domain.enums import PresenceGrade
+from story_engine.domain.models.play import ChoiceOption, Consequence, Presence
+from story_engine.services.intent_router import IntentRouter
 
 
 def _prompt(protagonist: str, facts: list[dict[str, str]], choices: list[str]) -> str:
@@ -100,3 +108,92 @@ def test_token_counts_are_zero_rather_than_invented() -> None:
     assert generation.prompt_tokens == 0
     assert generation.completion_tokens == 0
     assert generation.cost_usd == 0.0
+
+
+def _choice_option(choice_id: str, label: str) -> ChoiceOption:
+    return ChoiceOption(
+        id=choice_id,
+        label=label,
+        consequence=Consequence(
+            subject_id="dexter",
+            predicate="does_something_secret",
+            object_literal="a-consequence-that-must-never-reach-the-prompt",
+            roster=(Presence(entity_id="dexter", grade=PresenceGrade.ACTIVE),),
+        ),
+    )
+
+
+def _offered_options() -> tuple[ChoiceOption, ...]:
+    return (
+        _choice_option("opt-a", "Confront Doakes"),
+        _choice_option("opt-b", "Hide the evidence"),
+    )
+
+
+def _intent_router(script: dict[str, str] | None = None) -> IntentRouter:
+    return IntentRouter(
+        llm=ScriptedLLM(script),
+        prompts=FilePromptStore("prompts"),
+        model="scripted-intent-model",
+    )
+
+
+def test_a_plainly_matching_typed_action_routes_through_the_real_intent_router() -> (
+    None
+):
+    """Proves the fix: `ScriptedLLM` and `IntentRouter` actually interoperate now, not just that
+    `ScriptedLLM` can produce JSON in isolation."""
+    router = _intent_router()
+
+    resolved = router.resolve(
+        action="I want to hide the evidence before anyone finds it",
+        options=_offered_options(),
+        protagonist="dexter",
+    )
+
+    assert resolved.choice_id == "opt-b"
+    assert resolved.confidence >= 0.6
+    assert resolved.reasoning
+
+
+def test_an_unrelated_typed_action_still_resolves_to_no_match() -> None:
+    """The unresolved (422-over-HTTP) path must stay reachable in scripted mode — an action that
+    shares no vocabulary with any offered option must not be forced onto one."""
+    router = _intent_router()
+
+    resolved = router.resolve(
+        action="I fly to Cuba and start a new life",
+        options=_offered_options(),
+        protagonist="dexter",
+    )
+
+    assert resolved.choice_id is None
+
+
+def test_a_render_prompt_still_returns_prose_not_json() -> None:
+    """The existing render-prompt behaviour must be untouched by the intent-detection branch."""
+    prompt = _prompt("dexter", [], ["Go north", "Go south"])
+
+    output = _generate(prompt)
+
+    assert not output.strip().startswith("{")
+    assert "choice_id" not in output
+
+
+def test_the_router_never_receives_a_choice_id_that_was_not_offered() -> None:
+    """The router's security property, exercised against this adapter specifically: whatever
+    `ScriptedLLM` answers, `IntentRouter.resolve` only ever returns an id drawn from the options it
+    was given, or `None` — never something invented, and never something merely plausible."""
+    options = _offered_options()
+    offered_ids = {option.id for option in options}
+    router = _intent_router()
+
+    for action in [
+        "I confront him about the blood slides",
+        "I stash the evidence in the boat",
+        "I fly to Cuba and start a new life",
+        "",
+        "hmm not sure what to do",
+    ]:
+        resolved = router.resolve(action=action, options=options, protagonist="dexter")
+        assert resolved.choice_id is None or resolved.choice_id in offered_ids

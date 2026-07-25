@@ -13,9 +13,17 @@ It is **not** a fake that pretends to be a model. When a beat is not scripted it
 mechanically from the packet, and the result is obviously mechanical. That is deliberate: a fallback
 good enough to be mistaken for the real renderer would hide the fact that nothing was scripted.
 
+The same philosophy applies to `IntentRouter`'s classification calls (`prompts/interpret_intent/`):
+this adapter recognizes that prompt structurally (see `_INTENT_MARKER`) and answers with valid JSON
+chosen by plain keyword overlap between the typed action and each offered option's label — a rule
+transparent enough to read at a glance, never a disguised model. It is not scripted-mode
+special-casing inside the router: `IntentRouter` stays provider-agnostic and never learns this
+adapter exists; the detection lives entirely here, on the rendered prompt text it is handed.
+
 Swap in a real provider adapter behind the same port when one is configured; nothing else changes.
 """
 
+import json
 import re
 from collections.abc import Mapping
 
@@ -38,6 +46,55 @@ line scan reads the menu as if it were memory. It did, and the narration recited
 choices back at them — with the prompt three lines above saying never to name them. Scoping the
 scan to the block that ends at `RULES:` is what keeps the option list out of the prose.
 """
+
+_INTENT_MARKER = "Respond with JSON only, no other text and no code fence"
+"""A line from `prompts/interpret_intent/v1.jinja` that is present verbatim in every rendering of
+that template, regardless of the player's action or which options are on offer, and that no prose
+render prompt would ever contain. Detecting on this structural instruction — rather than a
+substring of the player's typed action or the options themselves — is what keeps this branch from
+ever firing on a render prompt, and from being defeated by a player typing something that merely
+looks like JSON.
+"""
+
+_INTENT_ACTION = re.compile(
+    r'in their own words:\n\n"(?P<action>.*?)"\n\nThe options actually on offer'
+)
+_INTENT_OPTION = re.compile(
+    r"^- id: (?P<id>\S+)\n {2}label: (?P<label>.*)$", re.MULTILINE
+)
+
+_TOKEN = re.compile(r"[a-z0-9]+")
+_STOPWORDS = frozenset(
+    {
+        "a",
+        "an",
+        "the",
+        "to",
+        "and",
+        "or",
+        "i",
+        "you",
+        "in",
+        "on",
+        "at",
+        "of",
+        "with",
+        "for",
+        "is",
+        "it",
+        "this",
+        "that",
+        "my",
+        "your",
+    }
+)
+
+
+def _tokenize(text: str) -> frozenset[str]:
+    """Lowercase word tokens with stopwords stripped, for the intent-matching overlap rule."""
+    return frozenset(
+        word for word in _TOKEN.findall(text.lower()) if word not in _STOPWORDS
+    )
 
 
 class ScriptedLLM:
@@ -73,7 +130,51 @@ class ScriptedLLM:
             return self._generation(self._script[idempotency_key], messages)
 
         prompt = messages[-1]["content"] if messages else ""
+        if _INTENT_MARKER in prompt:
+            return self._generation(self._match_intent(prompt), messages)
         return self._generation(self._compose(prompt), messages)
+
+    @staticmethod
+    def _match_intent(prompt: str) -> str:
+        """Answer an `interpret_intent` prompt with valid, schema-conforming JSON.
+
+        The rule is plain keyword overlap: tokenize the player's typed action and each offered
+        option's label (lowercased, stopwords stripped), and pick the option sharing the most
+        tokens with the action. Zero shared tokens with every option keeps the null path
+        reachable — a typed action unrelated to anything on offer must still resolve to no match,
+        not to an arbitrarily-guessed option. Confidence is a fixed constant on a match, well
+        clear of `IntentRouter`'s threshold, and `0.0` otherwise; there is no live model to hedge
+        for, so a graded confidence would only dress up a coin flip as judgment.
+        """
+        action_match = _INTENT_ACTION.search(prompt)
+        action_tokens = (
+            _tokenize(action_match.group("action")) if action_match else frozenset()
+        )
+
+        best_id: str | None = None
+        best_overlap = 0
+        for option_match in _INTENT_OPTION.finditer(prompt):
+            label_tokens = _tokenize(option_match.group("label"))
+            overlap = len(action_tokens & label_tokens)
+            if overlap > best_overlap:
+                best_overlap = overlap
+                best_id = option_match.group("id")
+
+        if best_id is None:
+            payload: dict[str, str | float | None] = {
+                "choice_id": None,
+                "confidence": 0.0,
+                "reasoning": "scripted: no offered option shares a word with the typed action",
+            }
+        else:
+            payload = {
+                "choice_id": best_id,
+                "confidence": 0.75,
+                "reasoning": (
+                    f"scripted: matched {best_overlap} shared word(s) with the offered option"
+                ),
+            }
+        return json.dumps(payload)
 
     @staticmethod
     def _compose(prompt: str) -> str:
