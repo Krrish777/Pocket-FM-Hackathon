@@ -3,65 +3,58 @@
 > The single per-session **clock-out** note. Overwrite at the end of each session. At session start, read
 > this first, then `PROGRESS.md` and `DECISIONS.md`. Keep it short.
 
-## Last session — 2026-07-25 (session 6, IN-HACK): the Knowledge Base, built and E2E tested
+## Last session — 2026-07-25 (session 6, IV&V AUDIT → two product blockers fixed)
 
-**Branch:** `worktree-knowledge-base` (worktree `.claude/worktrees/knowledge-base`), **rebased onto main**.
-Safety refs if anything looks wrong: `backup/kb-pre-rebase` (`ae31f13`), `backup/kb-pre-integrate`.
+**Branch:** `worktree-knowledge-base` (worktree `.claude/worktrees/knowledge-base`).
+**Framing:** an independent verification pass over the knowledge base, then remediation of the
+defects that blocked the product. `make check` is GREEN — **138 passed** (was 110).
 
-**Gate: `make check` GREEN — 110 passing** (70 unit · 40 integration + e2e against real on-disk SQLite).
+### The one thing to read next
+**`tests/e2e/test_product_flow_e2e.py`** — it walks the whole product scenario (character select →
+per-character memory → citation receipt → guarded semantic recall → player choice forks the story →
+replay as another character → restart) against a real on-disk database. Fastest way to see what the
+KB can and cannot currently carry. It is written against `project_context.md`, not against the
+implementation — which is why it found things the 110 green tests did not.
 
-### What was built
-Three stores over ONE tri-temporal fact model — **story time** (true in the world) · **telling time**
-(the audience learned it) · **record time** (this store learned it):
+### What I did
+1. **Audited the KB and reproduced 8 defects with executable probes** while the gate was green.
+   All findings are in `BACKLOG.md` § "🔴 IV&V AUDIT", with fixed items checked off.
+2. **Fixed the two PRODUCT blockers:**
+   - **Per-knower acquisition time.** `Fact.knower_scope` was a timeless `frozenset[str]`, and
+     `is_visible_to` gated EVERY knower on the audience's `revealed_at`. A character could not know
+     anything before the audience did, so all five cast members received identical packets and M5/S3
+     were unbuildable. Now `tuple[Awareness, ...]` — knower + the chapter they learned it — with
+     `AUDIENCE` as an ordinary knower. Call sites accept a `{knower: chapter}` mapping.
+   - **Fork lineage.** `fork_id` was an opaque partition key, so a player's branch contained their
+     one choice and none of the novels. Added the `canon_fork` table plus
+     `register_fork`/`get_fork`/`lineage`; `all_facts` resolves fork → parent → … → root with a
+     divergence cap and nearer-fork shadowing.
+3. **Fixed the CRITICAL defects in the same code paths:**
+   - the vector lane ignored `FactStatus`, so a QUARANTINED fact was searchable — the guard is now
+     ONE function, `domain.models.canon.is_visible`, called by both `Fact` and the vector store;
+   - `supersede()` skipped every domain validator and could write a row that made the whole fork
+     permanently unreadable — it re-validates through `Fact` now;
+   - double supersession left two live successors (I-2/I-8) — rejected;
+   - `as_of()` had no tie-break on equal `valid_from` — now a total order;
+   - vector `add()` was not idempotent, and `remove()` did not exist.
+4. **Regression tests for every one of the above**, plus `tests/integration/test_fork_lineage.py`.
 
-| Layer | What it does | Feature |
-|---|---|---|
-| Canon store | SQLite; as-of queries; **atomic** supersession (close window + insert replacement in one txn) | `KB-07` |
-| Graph projection | Derived adjacency, cycle-safe multi-hop, relationship diff. **No graph DB** — a service dependency breaks the offline constraint | `KB-10` |
-| Vector store | Semantic recall, guard as a **pre-filter**; dependency-free embedder behind `EmbedderPort` | `KB-12` |
-| Working memory | Bounded, deterministic per-character packets | `KB-11` |
-| Schema + invariants | Facts, forks, entities, scenes, commitments, flags, 6 pure predicates | `KB-01` |
-| Leak suite + E2E | Set-equality leak tests; two restarts; guard asserted at every layer | `KB-09`, `KB-08` |
+### State
+- `make check` GREEN: ruff + `ruff format --check` + mypy (56 files) + **138 tests**.
+- Suite re-run several times, consistent; no flakiness observed.
 
-### The one thing to understand about the design
-**The epistemic guarantee comes from what is ABSENT from the assembled context, not from instructing a
-model to withhold.** A fact never placed in the prompt cannot leak. That is why the guard is applied at
-*construction* in `LoreGraph.from_facts`, why `WorkingMemory` reads only from `store.visible_to()`, and why
-the vector store filters *before* ranking (a post-filter on top-k silently returns fewer than k and hides
-the leak in the gap). `project_context.md` §4.4 reached the same conclusion independently.
+### Next step
+**`AUD-H5` is the highest-value open item: the KB still has zero production callers.**
+`bootstrap.py` wires none of `SqliteCanonStore` / `SqliteVectorStore` / `WorkingMemory` /
+`HashingEmbedder`, and no API route or CLI command reaches canon. `AUD-H1` (canon⇄vector sync) is
+now cheap because `VectorStorePort.remove()` exists; only the ingest service pairing the two writes
+is missing.
 
-### Six real bugs the tests caught — all in the plan I wrote and self-reviewed
-mypy-unsafe `Provenance(**dict)` · SQLite silently dropping `tzinfo` · `as_of` hiding superseded facts from
-their own valid window · `conflicting_active_facts` ignoring `assertion_mode` (would have flagged a
-character's LIE as a canon contradiction, at BLOCKING severity) · focus-sort checking only one fact
-endpoint · superseded facts invisible at *every* chapter. **None were visible from inside the plan.** They
-surfaced because the tests assert stated properties rather than written code.
-
-## Next step / how to resume
-
-1. **UNBLOCK THE AGENT LOOP FIRST (~1h): seed 20–40 hand-authored facts** over one scene slice + the 5 cast
-   members. The API is stable and tested, so an agent built against seeded data works unchanged when real
-   ingestion lands. Do NOT wait for extraction — it is the largest, least predictable chunk, and sequencing
-   it first puts the riskiest integration last.
-2. **`KB-13` (~half a day):** fork write path + derive `knower_scope` from `Scene.witnesses`. These are the
-   only KB items the loop genuinely needs — M5's compounding condition (§4.2) and M6 both depend on them.
-   OD-1 is settled as **FORK**, so it is unblocked.
-3. Then: verifier + citations (M7), and ingestion (M1 / EXT-1).
-
-## Carry forward — things that will bite if forgotten
-
-- ⚠️ **`project_context.md` §5.3 wants THREE knowledge channels** (witnessed / told / inferred); we store
-  one `knower_scope` set. Enough for M5's guarantee (the filter only answers *does X know this*), not enough
-  to narrate *how* someone learned something. Additive to fix — cheap now, awkward after ingestion runs.
-- ⚠️ **Shared worktree + shared git index bit THREE times this session** (mine once, a subagent once, the
-  parallel session once — its commit swept 164 files). `git commit` commits the whole INDEX, not the paths
-  you just added. Use `git commit -- <pathspec>`, and never `git add` while another agent is live.
-- ⚠️ **Implementer self-reports are not evidence.** Three of five overstated what they had verified — a
-  hedged gate claim, a report file claimed but never written, a test count that needed checking. Every
-  shipped line was still correct, but only because reviewers were told to RUN the gate rather than read
-  about it. Keep that instruction in every review dispatch.
-- **Databricks Vector Search** plugs in as a second adapter behind the existing `VectorStorePort` — Delta
-  Sync, HYBRID (vector + BM25) search, and server-side filters so the guard runs at the index. The offline
-  embedder stays as demo insurance. Open question: `knower_scope` is a set, which is awkward as a
-  server-side filter — recommend denormalising to one index row per fact per knower (5 rows, trivial at
-  this scale) so the whole guard stays server-side.
+### Known gaps, stated plainly
+- `CanonEntity` / `Scene` / `Presence` / `Commitment` / `Flag` / `Source` still have no persistence
+  and no source consumers.
+- `knower_scope` is still populated by hand; nothing derives it from `Scene.witnesses` yet (KB-13's
+  propagation half), so knowledge does not compound across turns on its own.
+- Test-quality items `AUD-T1`, `AUD-T2`, `AUD-T5`, `AUD-T7`, `AUD-T11`, `AUD-T13` are deferred, not
+  done — notably the flagship leak test still uses a tautological oracle, and 4 of the 9 documented
+  invariants (I-6, I-7, I-8, I-9) have no test.

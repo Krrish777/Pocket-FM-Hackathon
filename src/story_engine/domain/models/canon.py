@@ -11,9 +11,10 @@ The domain takes no clock: callers supply `recorded_at`, so the core stays deter
 and offline-testable. See PRD-KNOWLEDGE-BASE.md §8.1 and §9.
 """
 
-from typing import Annotated
+from collections.abc import Mapping
+from typing import Annotated, Any
 
-from pydantic import AwareDatetime, Field, model_validator
+from pydantic import AwareDatetime, Field, field_validator, model_validator
 
 from story_engine.domain.base import DomainModel
 from story_engine.domain.enums import (
@@ -44,6 +45,58 @@ AUDIENCE = "audience"
 
 NARRATOR = "narrator"
 """Knower-scope sentinel: the telling voice, which may know more than it reveals."""
+
+
+class Awareness(DomainModel):
+    """One knower, and the chapter at which they learned a fact.
+
+    Knowledge is not a set, it is a set of *arrivals*. Storing membership without an
+    acquisition time forces every knower onto one clock — and the only clock available is
+    the audience's `revealed_at`, which makes "Doakes suspects at chapter 6, the audience
+    finds out at chapter 20" unrepresentable. That sentence is the product, so the time
+    travels with the knower.
+
+    Modelled as a frozen value object rather than a `dict` field because `DomainModel` sets
+    `frozen=True` to guarantee hashable value objects, and a mapping field would silently
+    break `hash(fact)`.
+    """
+
+    knower: str = Field(min_length=1)
+    learned_at: "ChapterIndex"
+
+
+def is_visible(
+    *,
+    status: FactStatus,
+    revealed_at: "ChapterIndex | None",
+    knower_scope: tuple[Awareness, ...] | None,
+    knower: str,
+    chapter: "ChapterIndex",
+) -> bool:
+    """The spoiler guard, as ONE function over the fields that decide it.
+
+    Extracted from `Fact` so every retrieval lane can call the same predicate instead of
+    mirroring it. The vector store previously kept its own copy that checked reveal time
+    and knower scope but not `status`, so a QUARANTINED fact the canon store hid was
+    returned by similarity search — a second implementation of a security predicate drifts
+    from the first, and the drift is invisible until something like this asks both.
+
+    Args:
+        status: QUARANTINED never reached canon and stays invisible everywhere, always.
+            INVALIDATED was canon and is still knowable at points where it held.
+        revealed_at: Telling time — when the audience learned it. Governs untracked facts.
+        knower_scope: Per-knower acquisition chapters, or None for untracked.
+        knower: Whose view is being assembled.
+        chapter: The position in the telling being played.
+    """
+    if status is FactStatus.QUARANTINED:
+        return False
+    if knower_scope is None:
+        return revealed_at is not None and revealed_at <= chapter
+    for awareness in knower_scope:
+        if awareness.knower == knower:
+            return awareness.learned_at <= chapter
+    return False
 
 
 class Provenance(DomainModel):
@@ -147,14 +200,17 @@ class Fact(DomainModel):
         default=None, description="Required iff assertion_mode is ATTRIBUTED."
     )
 
-    knower_scope: frozenset[str] | None = Field(
+    knower_scope: tuple[Awareness, ...] | None = Field(
         default=None,
         min_length=1,
-        description="Entity ids plus AUDIENCE/NARRATOR sentinels that know this. "
-        "None = NOT TRACKED: visibility is governed by revealed_at alone. Populate only "
-        "for typed secrets, lies and deliberately withheld information — universal "
+        description="Who knows this, and from which chapter each of them knows it. "
+        "AUDIENCE/NARRATOR are ordinary knowers here — the audience holds no privileged "
+        "clock. None = NOT TRACKED: visibility is governed by revealed_at alone. Populate "
+        "only for typed secrets, lies and deliberately withheld information — universal "
         "per-character tracking is not evidence-supported and its false-extraction rate "
-        "produces false blocks on legitimate dialogue.",
+        "produces false blocks on legitimate dialogue. Accepts a {knower: chapter} mapping "
+        "for readability; a bare set of names is rejected, because a name without an "
+        "acquisition chapter is exactly the ambiguity this field exists to remove.",
     )
     provenance: Provenance
     confidence: float = Field(ge=0.0, le=1.0)
@@ -187,23 +243,36 @@ class Fact(DomainModel):
         """Whether the audience has learned this by this point in the telling."""
         return self.revealed_at is not None and self.revealed_at <= chapter
 
-    def is_known_by(self, knower: str) -> bool:
-        """Whether this knower holds the fact.
+    def learned_at(self, knower: str) -> ChapterIndex | None:
+        """The chapter `knower` learned this, or None if they never do.
 
-        An untracked fact (`knower_scope is None`) is held by everyone: its visibility is
-        governed by telling time alone. Only typed secrets and lies carry a scope.
+        An untracked fact (`knower_scope is None`) is learned by everyone exactly when the
+        audience learns it, so it answers with `revealed_at`.
         """
         if self.knower_scope is None:
-            return True
-        return knower in self.knower_scope
+            return self.revealed_at
+        for awareness in self.knower_scope:
+            if awareness.knower == knower:
+                return awareness.learned_at
+        return None
+
+    def is_known_by(self, knower: str, chapter: ChapterIndex) -> bool:
+        """Whether this knower holds the fact by this point in the telling."""
+        acquired = self.learned_at(knower)
+        return acquired is not None and acquired <= chapter
 
     def is_visible_to(self, knower: str, chapter: ChapterIndex) -> bool:
         """Whether this fact may be surfaced to `knower` at this point in the telling.
 
-        The spoiler guard in one predicate. Deliberately does NOT consider story-time
-        validity: a fact that stopped being true is still safely *knowable* (Kael's old
-        loyalty is not a spoiler). Callers wanting current truth compose with
-        `is_valid_at`.
+        The spoiler guard in one predicate. Each knower is gated on THEIR OWN acquisition
+        chapter, never on the audience's. Gating a character on `revealed_at` collapses
+        five points of view into one: a character could not act on a secret they were
+        shown on the page until the audience was also told, so every cast member ends up
+        holding the identical fact set and the epistemic layer becomes decorative.
+
+        Deliberately does NOT consider story-time validity: a fact that stopped being true
+        is still safely *knowable* (Kael's old loyalty is not a spoiler). Callers wanting
+        current truth compose with `is_valid_at`.
 
         Excludes only QUARANTINED, not every non-ACTIVE status: QUARANTINED and
         INVALIDATED mean different things. QUARANTINED never reached canon and must
@@ -213,9 +282,41 @@ class Fact(DomainModel):
         unconditionally would make the fact invisible even at chapters where it was
         both true and already public, contradicting this docstring's own promise.
         """
-        if self.status is FactStatus.QUARANTINED:
-            return False
-        return self.is_revealed_by(chapter) and self.is_known_by(knower)
+        return is_visible(
+            status=self.status,
+            revealed_at=self.revealed_at,
+            knower_scope=self.knower_scope,
+            knower=knower,
+            chapter=chapter,
+        )
+
+    @field_validator("knower_scope", mode="before")
+    @classmethod
+    def _normalise_knower_scope(cls, value: Any) -> Any:
+        """Accept a `{knower: chapter}` mapping, and order the result by knower.
+
+        Call sites read far better as `{AUDIENCE: 20, "doakes": 6}` than as a sequence of
+        constructed value objects, and the mapping form makes the acquisition chapter
+        impossible to omit by accident.
+
+        Held as an ORDER-NORMALISED tuple rather than a set. A set of `Awareness` would be
+        the truer model — order is meaningless here — but `model_dump()` renders each
+        member as a `dict`, and a set of dicts is unhashable, so dumping the model raised
+        `TypeError` and the dump→validate round trip died. Sorting on the way in gives the
+        same equality semantics a set would, while staying serialisable.
+        """
+        if isinstance(value, Mapping):
+            value = [
+                Awareness(knower=knower, learned_at=learned_at)
+                for knower, learned_at in value.items()
+            ]
+        if isinstance(value, list | tuple | set | frozenset):
+            entries = [
+                item if isinstance(item, Awareness) else Awareness.model_validate(item)
+                for item in value
+            ]
+            return tuple(sorted(entries, key=lambda a: a.knower))
+        return value
 
     @model_validator(mode="after")
     def _exactly_one_object(self) -> "Fact":
@@ -256,16 +357,36 @@ class Fact(DomainModel):
         return self
 
     @model_validator(mode="after")
+    def _scope_names_each_knower_once(self) -> "Fact":
+        # Two arrival chapters for one knower is not a merge conflict the guard can
+        # resolve — it would silently pick whichever the frozenset iterated first.
+        if self.knower_scope is None:
+            return self
+        names = [awareness.knower for awareness in self.knower_scope]
+        if len(names) != len(set(names)):
+            raise ValueError("knower_scope must not name the same knower twice")
+        return self
+
+    @model_validator(mode="after")
     def _reveal_matches_scope(self) -> "Fact":
-        # revealed_at and knower_scope are two encodings of telling time; letting them
-        # disagree lets a fact the text put on the page still be denied to the audience.
-        if (
-            self.revealed_at is not None
-            and self.knower_scope is not None
-            and AUDIENCE not in self.knower_scope
-        ):
+        # revealed_at and the AUDIENCE entry are two encodings of one thing: when the
+        # audience learned it. Letting them disagree lets a fact the text put on the page
+        # still be denied to the audience, or vice versa.
+        if self.knower_scope is None:
+            return self
+        audience_learned_at = self.learned_at(AUDIENCE)
+        if self.revealed_at is None and audience_learned_at is not None:
+            raise ValueError(
+                "a fact whose knower_scope includes AUDIENCE must set revealed_at to the "
+                "same chapter"
+            )
+        if self.revealed_at is not None and audience_learned_at is None:
             raise ValueError(
                 "a revealed_at fact with a tracked knower_scope must include AUDIENCE"
+            )
+        if audience_learned_at is not None and audience_learned_at != self.revealed_at:
+            raise ValueError(
+                "revealed_at and the AUDIENCE entry in knower_scope must agree"
             )
         return self
 

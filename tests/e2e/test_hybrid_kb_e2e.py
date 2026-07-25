@@ -82,7 +82,7 @@ def test_hybrid_knowledge_base_end_to_end(tmp_path: Path) -> None:
             "the_ash",
             valid_from=3,
             revealed_at=3,
-            knower_scope=frozenset({AUDIENCE, "mycroft"}),
+            knower_scope={AUDIENCE: 3, "mycroft": 3},
         )
     )
     store.append(

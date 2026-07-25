@@ -25,6 +25,23 @@ class EpisodeSummaryRow(SQLModel, table=True):
     emotional_beat: str | None = Field(default=None)
 
 
+class ForkRow(SQLModel, table=True):
+    """Storage row for `domain.models.Fork` — the branch registry.
+
+    Facts carry a `fork_id` string, but a branch is only a branch if something records what
+    it descends FROM. Without this table `fork_id` is an opaque partition key: a player's
+    branch of the Dexter novels contains their one choice and none of the novels.
+    """
+
+    __tablename__ = "canon_fork"
+
+    id: str = Field(primary_key=True)
+    parent_fork_id: str | None = Field(default=None, index=True)
+    divergence_at: int | None = Field(default=None)
+    source_id: str | None = Field(default=None)
+    label: str
+
+
 class FactRow(SQLModel, table=True):
     """Storage row for `domain.models.Fact` — the tri-temporal canon record.
 
@@ -67,17 +84,27 @@ class FactRow(SQLModel, table=True):
 class VectorRow(SQLModel, table=True):
     """Storage row for a semantic-recall embedding — the vector store's only table.
 
-    Denormalized copy of `revealed_at`/`knower_scope` from the owning fact so `search` can
-    apply the spoiler guard without a join back to `FactRow`. Same NULL-vs-empty-list
-    semantics as `FactRow.knower_scope`: NULL means NOT TRACKED (visible to everyone).
+    Denormalized copy of EVERY field the spoiler guard reads — `status`, `revealed_at` and
+    `knower_scope` — from the owning fact, so `search` can apply the guard without a join
+    back to `FactRow`. `status` is not optional here: it was once omitted, and a
+    QUARANTINED fact the canon store hid stayed reachable by similarity search.
+
+    `fact_id` is UNIQUE: re-indexing a fact must replace its row, not add a second one.
+    Duplicates are not merely untidy — they consume the caller's top-k budget with
+    identical hits, silently shrinking how much distinct canon a query can reach.
+
+    Same NULL-vs-empty-list semantics as `FactRow.knower_scope`: NULL means NOT TRACKED.
     """
 
     __tablename__ = "canon_vector"
 
     id: int | None = Field(default=None, primary_key=True)
-    fact_id: str = Field(index=True)
+    fact_id: str = Field(index=True, unique=True)
     fork_id: str = Field(index=True)
     text: str
     vector: list[float] = Field(default_factory=list, sa_column=Column(JSON))
+    status: str = Field(index=True)
     revealed_at: int | None = Field(default=None, index=True)
-    knower_scope: list[str] | None = Field(default=None, sa_column=Column(JSON))
+    knower_scope: list[dict[str, object]] | None = Field(
+        default=None, sa_column=Column(JSON)
+    )

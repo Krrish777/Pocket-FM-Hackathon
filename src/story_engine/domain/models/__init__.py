@@ -6,6 +6,7 @@ STARTER models; refine to the hackathon brief. Split by aggregate (no god `model
 from story_engine.domain.models.canon import (
     AUDIENCE,
     NARRATOR,
+    Awareness,
     CanonEntity,
     ChapterIndex,
     Commitment,
@@ -16,6 +17,7 @@ from story_engine.domain.models.canon import (
     Provenance,
     Scene,
     Source,
+    is_visible,
 )
 from story_engine.domain.models.character import CharacterState
 from story_engine.domain.models.memory import (
@@ -29,6 +31,7 @@ from story_engine.domain.models.story import Episode, Story
 __all__ = [
     "AUDIENCE",
     "NARRATOR",
+    "Awareness",
     "CanonEntity",
     "CanonFact",
     "ChapterIndex",
@@ -46,4 +49,5 @@ __all__ = [
     "Source",
     "Story",
     "StoryBible",
+    "is_visible",
 ]

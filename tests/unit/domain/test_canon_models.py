@@ -128,7 +128,7 @@ def _fact(**overrides: object) -> Fact:
         "revealed_at": 1,
         "assertion_mode": AssertionMode.NARRATED,
         "attributed_to": None,
-        "knower_scope": frozenset({AUDIENCE, "kael"}),
+        "knower_scope": None,
         "provenance": Provenance(
             source_id="src-1", chapter=1, char_start=0, char_end=12, quote="Kael knelt."
         ),
@@ -225,11 +225,11 @@ def test_superseded_at_must_not_precede_recorded_at() -> None:
 def test_revealed_fact_with_tracked_scope_must_include_audience() -> None:
     """Two encodings of telling time (revealed_at, knower_scope) must not disagree."""
     with pytest.raises(ValidationError):
-        _fact(revealed_at=3, knower_scope=frozenset({"holmes"}))
+        _fact(revealed_at=3, knower_scope={"holmes": 3})
 
 
 def test_revealed_fact_with_audience_in_scope_is_accepted() -> None:
-    fact = _fact(revealed_at=3, knower_scope=frozenset({AUDIENCE, "holmes"}))
+    fact = _fact(revealed_at=3, knower_scope={AUDIENCE: 3, "holmes": 3})
     assert fact.is_visible_to(AUDIENCE, 5) is True
 
 
@@ -259,7 +259,7 @@ def test_unrevealed_fact_is_never_revealed() -> None:
 
 
 def test_is_visible_to_combines_status_reveal_and_scope() -> None:
-    fact = _fact(revealed_at=3, knower_scope=frozenset({AUDIENCE, "holmes"}))
+    fact = _fact(revealed_at=3, knower_scope={AUDIENCE: 3, "holmes": 3})
     assert fact.is_visible_to("holmes", 5) is True
     assert fact.is_visible_to("watson", 5) is False  # not in scope
     assert fact.is_visible_to("holmes", 2) is False  # not yet revealed
@@ -292,7 +292,7 @@ def test_invalidated_fact_is_still_visible_at_a_chapter_inside_its_old_window() 
 def test_fact_round_trips_through_model_dump() -> None:
     """The next milestone's contract: dump then re-validate must reproduce the fact."""
     fact = _fact(
-        knower_scope=frozenset({AUDIENCE, "kael"}),
+        knower_scope={AUDIENCE: 1, "kael": 1},
         valid_to=20,
         status=FactStatus.INVALIDATED,
         superseded_at=datetime(2026, 7, 25, 13, 0, tzinfo=UTC),

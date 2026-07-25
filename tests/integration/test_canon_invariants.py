@@ -97,9 +97,7 @@ def test_scope_tracked_facts_do_not_leak_to_a_knower_outside_the_scope(
 ) -> None:
     """The dramatic-irony case: Watson must not receive a Holmes-only secret."""
     store.append(
-        _fact(
-            id="f-secret", revealed_at=1, knower_scope=frozenset({AUDIENCE, "holmes"})
-        )
+        _fact(id="f-secret", revealed_at=1, knower_scope={AUDIENCE: 1, "holmes": 1})
     )
     assert store.visible_to("canon", "watson", 9999) == (), LEAK_SEVERITY
     assert {f.id for f in store.visible_to("canon", "holmes", 9999)} == {"f-secret"}

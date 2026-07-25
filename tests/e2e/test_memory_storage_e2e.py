@@ -83,7 +83,7 @@ def test_memory_storage_end_to_end(tmp_path: Path) -> None:
             object_id="the_ash",
             valid_from=3,
             revealed_at=3,
-            knower_scope=frozenset({AUDIENCE, "holmes"}),  # Watson is not in scope
+            knower_scope={AUDIENCE: 3, "holmes": 3},  # Watson is not in scope
         )
     )
 

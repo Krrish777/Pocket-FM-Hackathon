@@ -43,7 +43,7 @@ def _fact(fact_id: str, **overrides: object) -> Fact:
         "revealed_at": 1,
         "assertion_mode": AssertionMode.NARRATED,
         "attributed_to": None,
-        "knower_scope": frozenset({AUDIENCE}),
+        "knower_scope": None,
         "provenance": PROV,
         "confidence": 0.9,
         "tier": 0,
@@ -72,8 +72,8 @@ def test_visible_and_withheld_partition_the_fact_set() -> None:
 def test_epistemic_violations_catch_acting_on_unknown_information() -> None:
     """Watson may not act on a fact only Holmes knows."""
     facts = (
-        _fact("f-1", knower_scope=frozenset({AUDIENCE, "holmes"})),
-        _fact("f-2", knower_scope=frozenset({AUDIENCE, "watson"})),
+        _fact("f-1", knower_scope={AUDIENCE: 1, "holmes": 1}),
+        _fact("f-2", knower_scope={AUDIENCE: 1, "watson": 1}),
     )
     violations = epistemic_violations(
         used_fact_ids=("f-1", "f-2"), facts=facts, knower="watson", chapter=5

@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Protocol
 
-from story_engine.domain.models import ChapterIndex, Fact
+from story_engine.domain.models import ChapterIndex, Fact, Fork
 
 
 class CanonStorePort(Protocol):
@@ -17,8 +17,29 @@ class CanonStorePort(Protocol):
         """Return one fact by id, or None."""
         ...
 
+    def register_fork(self, fork: Fork) -> None:
+        """Record a branch and what it descends from. Re-registering replaces."""
+        ...
+
+    def get_fork(self, fork_id: str) -> Fork | None:
+        """Return one registered fork by id, or None."""
+        ...
+
+    def lineage(self, fork_id: str) -> tuple[tuple[str, ChapterIndex | None], ...]:
+        """Walk fork → parent → … → root, pairing each with its inherited story-time cap.
+
+        An unregistered fork resolves as a root, so a bare `fork_id` keeps working exactly
+        as it did before branches existed.
+        """
+        ...
+
     def all_facts(self, fork_id: str) -> tuple[Fact, ...]:
-        """Every fact in a fork, in record order."""
+        """Every fact visible in a fork — its own plus inherited ancestor canon.
+
+        Ancestor facts that predate the divergence are included; a nearer fork shadows an
+        ancestor on the same (subject_id, predicate). Ordered by (recorded_at, id), a
+        TOTAL order, so assembly downstream is genuinely deterministic.
+        """
         ...
 
     def as_of(

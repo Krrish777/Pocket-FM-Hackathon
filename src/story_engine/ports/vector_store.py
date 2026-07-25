@@ -14,7 +14,7 @@ returns fewer than k and hides the leak in the gap.
 from typing import Protocol
 
 from story_engine.domain.base import DomainModel
-from story_engine.domain.models import ChapterIndex
+from story_engine.domain.models import ChapterIndex, Fact
 
 
 class VectorHit(DomainModel):
@@ -28,19 +28,23 @@ class VectorHit(DomainModel):
 class VectorStorePort(Protocol):
     """Index and semantically search fact text, spoiler-guard enforced at the seam."""
 
-    def add(
-        self,
-        fact_id: str,
-        fork_id: str,
-        text: str,
-        vector: tuple[float, ...],
-        revealed_at: ChapterIndex | None,
-        knower_scope: frozenset[str] | None,
-    ) -> None:
-        """Index one fact's text under its embedding.
+    def add(self, fact: Fact, text: str, vector: tuple[float, ...]) -> None:
+        """Index one fact's text under its embedding, replacing any earlier row for it.
 
-        `revealed_at`/`knower_scope` are stored alongside the vector so `search` can apply
-        the spoiler guard without a join back to the canon store.
+        Takes the whole fact, not loose guard fields: every field the guard reads
+        (`status`, `revealed_at`, `knower_scope`) is copied alongside the vector so
+        `search` needs no join back to the canon store — and copying them from one object
+        makes it impossible to pair one fact's text with another's visibility.
+
+        Must be idempotent on `fact.id`: re-indexing replaces, never duplicates.
+        """
+        ...
+
+    def remove(self, fact_id: str) -> None:
+        """Drop a fact's row from the index; a no-op when it is absent.
+
+        Supersession must be able to retire the old fact's vector in the same unit of work
+        that closes its window, or the index keeps ranking a fact canon has retired.
         """
         ...
 
@@ -54,8 +58,10 @@ class VectorStorePort(Protocol):
     ) -> tuple[VectorHit, ...]:
         """Return up to `k` semantically nearest, spoiler-safe hits, most similar first.
 
-        Must exclude any row whose `revealed_at` is null or greater than `chapter`, and any
-        row whose `knower_scope` is non-null and does not contain `knower`. Filter BEFORE
-        ranking — never after.
+        Must apply the domain's `is_visible` predicate — not a local re-implementation of
+        it — and must apply it BEFORE ranking, never after.
+
+        Raises:
+            ValueError: `k` is less than 1.
         """
         ...

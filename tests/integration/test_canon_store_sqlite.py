@@ -63,7 +63,7 @@ def test_mapping_round_trip_preserves_every_field() -> None:
     silently dropped or coerced field fails here rather than surviving to production.
     """
     original = _fact(
-        knower_scope=frozenset({AUDIENCE, "holmes"}),
+        knower_scope={AUDIENCE: 42, "holmes": 42},
         valid_to=180,
         revealed_at=42,
         object_id=None,
@@ -110,7 +110,7 @@ def store(tmp_path: Path) -> SqliteCanonStore:
 
 
 def test_append_then_get_returns_an_equal_fact(store: SqliteCanonStore) -> None:
-    original = _fact(knower_scope=frozenset({AUDIENCE, "holmes"}), revealed_at=3)
+    original = _fact(knower_scope={AUDIENCE: 3, "holmes": 3}, revealed_at=3)
     store.append(original)
     assert store.get("f-1") == original
 
@@ -175,7 +175,7 @@ def test_the_store_survives_a_restart(tmp_path: Path) -> None:
     db = tmp_path / "canon.db"
     engine = create_engine(f"sqlite:///{db}")
     SQLModel.metadata.create_all(engine)
-    original = _fact(revealed_at=3, knower_scope=frozenset({AUDIENCE}))
+    original = _fact(revealed_at=3, knower_scope={AUDIENCE: 3})
     SqliteCanonStore(engine).append(original)
     engine.dispose()  # close every pooled connection — simulate process exit
 
@@ -246,3 +246,117 @@ def test_superseding_an_unknown_id_raises(store: SqliteCanonStore) -> None:
             closes_at=1,
             superseded_at=SUPERSEDED,
         )
+
+
+def test_a_supersession_that_would_invert_the_window_is_rejected(
+    store: SqliteCanonStore,
+) -> None:
+    """REGRESSION: the write path skipped every model validator.
+
+    `supersede` mutates row attributes directly, so nothing re-checked the domain's
+    invariants on the way out — while every read still enforced them. A `closes_at`
+    earlier than `valid_from` wrote happily and then made `get`/`all_facts` raise
+    `ValidationError` on that fork FOREVER, with no delete path to repair it. One bad call
+    bricked the store.
+
+    Validation must be symmetric: what cannot be read must not be writable.
+    """
+    store.append(_fact(id="f-old", valid_from=10))
+
+    with pytest.raises(ValueError):
+        store.supersede(
+            "f-old",
+            replacement=_fact(id="f-new", valid_from=11),
+            closes_at=3,  # before the fact even began
+            superseded_at=SUPERSEDED,
+        )
+
+    # The store must still be readable — the rejected write left nothing behind.
+    assert store.get("f-old") is not None
+    assert {f.id for f in store.all_facts("canon")} == {"f-old"}
+
+
+def test_superseding_an_already_superseded_fact_is_rejected(
+    store: SqliteCanonStore,
+) -> None:
+    """REGRESSION: I-2 / I-8 — never zero live successors, never two.
+
+    Nothing checked that the target was still ACTIVE, so a second supersession of the same
+    fact closed it again and appended a second replacement. Both successors then satisfied
+    `is_valid_at` at the same story time: two live, contradicting rows for one key, which
+    `tests/README.md` calls the core bitemporal correctness property.
+    """
+    store.append(_fact(id="f-old", valid_from=1))
+    store.supersede(
+        "f-old",
+        replacement=_fact(id="f-a", valid_from=5),
+        closes_at=4,
+        superseded_at=SUPERSEDED,
+    )
+
+    with pytest.raises(ValueError, match="already"):
+        store.supersede(
+            "f-old",
+            replacement=_fact(id="f-b", valid_from=8),
+            closes_at=7,
+            superseded_at=SUPERSEDED,
+        )
+
+    live = [
+        f
+        for f in store.all_facts("canon")
+        if f.status is FactStatus.ACTIVE and f.is_valid_at(9)
+    ]
+    assert [f.id for f in live] == ["f-a"], "exactly one live successor, never two"
+
+
+def test_a_fact_cannot_supersede_itself(store: SqliteCanonStore) -> None:
+    """Self-supersession would close a fact's window against its own replacement."""
+    store.append(_fact(id="f-old"))
+    with pytest.raises(ValueError):
+        store.supersede(
+            "f-old",
+            replacement=_fact(id="f-old", valid_from=5),
+            closes_at=4,
+            superseded_at=SUPERSEDED,
+        )
+
+
+def test_supersession_is_fork_local(store: SqliteCanonStore) -> None:
+    """A branch must not reach across and retire another fork's canon."""
+    store.append(_fact(id="f-old", fork_id="canon"))
+    with pytest.raises(ValueError, match="fork"):
+        store.supersede(
+            "f-old",
+            replacement=_fact(id="f-new", fork_id="branch", valid_from=5),
+            closes_at=4,
+            superseded_at=SUPERSEDED,
+        )
+
+
+def test_as_of_is_deterministic_when_two_rows_share_a_valid_from(
+    store: SqliteCanonStore,
+) -> None:
+    """REGRESSION: `ORDER BY valid_from DESC` is not a TOTAL order.
+
+    With two rows sharing a `valid_from`, the winner was decided by whatever order SQLite
+    happened to return — so a retired row could beat the ACTIVE one that replaced it. The
+    headline temporal query has to be a function of the data, not of row order.
+    """
+    store.append(
+        _fact(
+            id="f-retired",
+            valid_from=1,
+            object_id="the_crown",
+            status=FactStatus.INVALIDATED,
+            superseded_at=SUPERSEDED,
+        )
+    )
+    store.append(_fact(id="f-live", valid_from=1, object_id="the_rebels"))
+
+    results = {store.as_of("canon", "kael", "loyal_to", 3) for _ in range(5)}
+
+    assert len(results) == 1, "as_of must return the same row every time"
+    winner = results.pop()
+    assert winner is not None
+    assert winner.id == "f-live", "a live row must beat a retired one at the same key"
