@@ -4,6 +4,23 @@
 > `feature_list.json` (with a `verification` command, `passes:false`). `feature_list.json` is the machine
 > source of truth; this file is for humans to plan and reorder.
 
+## NOW — Product phase (session 5, 2026-07-25). The brief has landed.
+
+> **Scope lives in `project_context.md` (§7), not here.** This list is the ordered queue only.
+> Provenance for every decision: `docs/2026-07-25-product-definition-session.md`.
+> Machine SSOT: `feature_list.json` (M1–M8 MUST, S1–S3 SHOULD, all `passes:false`).
+
+1. **M8 — uniform character state schema. FIRST.** The only decision expensive to retrofit; M5 and S3 both
+   depend on it. No PC/NPC asymmetry in storage; renderer takes a character as a parameter. (`project_context.md` §4.4)
+2. **OD-1 — fork vs. tier**, before storage is written. Recommend **fork**.
+3. **OD-3 — get the EXT-1 scraper output contract** from the parallel session. Highest-risk unknown.
+4. **OD-2 — novel vs. screen canon**, before any fan-fiction is ingested. Silent corruption path.
+5. **M5** — per-character epistemic memory (depends on M8).
+6. **M1 → M4 → M2 → M3 → M6 → M7**, then S3 → S2 → S1.
+7. **OD-4** — define the degradation path for moments with thin fan-fiction coverage, before the demo script is fixed.
+8. **OD-5** — product name ("CANON: Time Machine" no longer describes the product).
+9. Housekeeping: add the new top-level `docs/` dir to `.claude/rules/structure.md`.
+
 ## Session 3 (2026-07-24) — user file-by-file review (LIVE — being added to as the user reviews)
 
 > The user is walking the repo file by file and raising fixes. Captured here first (persistent list), then

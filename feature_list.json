@@ -1,16 +1,18 @@
 {
   "$schema_note": "Machine source of truth for work. Each feature is {id, description, verification, passes, evidence}. passes starts false and is flipped to true ONLY by its verification command succeeding — do not hand-edit. One feature active at a time (WIP=1). JSON on purpose so it is not casually rewritten. See CLAUDE.md > Feature List Rules.",
   "meta": {
-    "phase": "initialization",
-    "note": "These are initialization-phase features (get the harness runnable), NOT story-engine business features. Seed real product features here once the hackathon problem statement is known (see BACKLOG.md)."
+    "phase": "product",
+    "note": "Initialization + hardening phases are complete. Product features (M*/S*) are derived from project_context.md §7 — that file is the single source of truth for scope and definitions of done. M-features are MUST; S-features are SHOULD and must not be started until every M-feature passes.",
+    "spec": "project_context.md",
+    "decision_provenance": "docs/2026-07-25-product-definition-session.md"
   },
   "features": [
     {
       "id": "INIT-01",
       "description": "Hackathon problem statement is captured in CLAUDE.md and broken into a backlog",
       "verification": "! grep -q 'Problem statement: `TODO`' CLAUDE.md",
-      "passes": false,
-      "evidence": ""
+      "passes": true,
+      "evidence": "2026-07-25 (s5): brief received (P1-P6 tracks); track selected (P1 Story Time Machine + Infinite Story Universe) and narrowed to a concrete product in project_context.md. CLAUDE.md + AGENTS.md problem-statement line now points at it. Verification command re-run: PASS. Decision provenance in docs/2026-07-25-product-definition-session.md (13 decisions, rejected alternatives recorded)."
     },
     {
       "id": "INIT-02",
@@ -31,7 +33,7 @@
       "description": "`make check` runs ruff + mypy + pytest with at least one passing example test",
       "verification": "make check",
       "passes": true,
-      "evidence": "2026-07-24: ruff clean, format clean (100 files), mypy `Success: no issues found in 40 source files`, pytest 1 passed. Fixes: StrEnum (UP042), .agents excluded from ruff, isinstance-narrow in api/errors.py."
+      "evidence": "2026-07-25 (s5): re-verified GREEN, exit code 0, 7 passed. Fix this session: added `.claude/worktrees` to ruff extend-exclude — parallel-session worktrees are separate checkouts that run their own gate; linting them from the parent made our gate fail on their in-progress code (RUF001 in reddit-fanfic-scraper)."
     },
     {
       "id": "INIT-05",
@@ -73,7 +75,84 @@
       "description": "Author local sqlmodel/pytest/thin-pydantic skills modeled on the FastAPI skill structure",
       "verification": "test -e .claude/skills/sqlmodel/SKILL.md && test -e .claude/skills/pytest/SKILL.md",
       "passes": false,
-      "evidence": "DEFERRED to next session (user decision) — focus this session was persistence + validation method."
+      "evidence": "DEFERRED (s2, s5) — superseded in priority by product features now that the brief has landed. Do not start before M1-M8."
+    },
+    {
+      "id": "M8",
+      "description": "Uniform character state schema — all 5 cast members share one identical state structure (knowledge set over shared world state + traits + goals); no PC/NPC asymmetry in storage; renderer takes a character as a parameter. See project_context.md §4.4.",
+      "verification": "uv run pytest -m unit -k character_state_schema -q",
+      "passes": false,
+      "evidence": "NOT STARTED. BUILD THIS FIRST — it is the only decision in the product that is expensive to retrofit, and M5/S3 both depend on it."
+    },
+    {
+      "id": "M5",
+      "description": "Per-character epistemic memory — one world state, 5 filtered views; a character cannot act on facts they did not witness, were not told, and could not infer. See project_context.md §5.3.",
+      "verification": "uv run pytest -m unit -k epistemic -q",
+      "passes": false,
+      "evidence": "NOT STARTED. Depends on M8. Acceptance condition per project_context.md §4.2: a character who did not learn a fact at step 4 must still not know it at step N for all N > 4."
+    },
+    {
+      "id": "M1",
+      "description": "Knowledge base extracted from the Dexter novels — facts stored with provenance sufficient to produce a citation",
+      "verification": "uv run pytest -m integration -k canon_kb -q",
+      "passes": false,
+      "evidence": "NOT STARTED. Ingestion is EXT-1 (parallel session) — see project_context.md §9. Blocked on OD-3 (output contract undefined) and OD-2 (novel vs screen canon)."
+    },
+    {
+      "id": "M4",
+      "description": "Choices sourced from scraped fan-fiction (the branch oracle) — options originate from real fan-fiction divergences, not hand-authored and not freely invented by the model. See project_context.md §5.2.",
+      "verification": "uv run pytest -m integration -k branch_oracle -q",
+      "passes": false,
+      "evidence": "NOT STARTED. Depends on EXT-1. Blocked on OD-3, OD-2, OD-4 (sparse coverage degradation path undefined)."
+    },
+    {
+      "id": "M2",
+      "description": "Character selection — the player can select any of the 5 cast members (Dexter, Debra, Doakes, LaGuerta, Rita)",
+      "verification": "uv run pytest -m integration -k character_select -q",
+      "passes": false,
+      "evidence": "NOT STARTED. Depends on M8."
+    },
+    {
+      "id": "M3",
+      "description": "Choice-based playthrough (text) — up to 10 sequential choices, 2-4 discrete options per decision point, no free text",
+      "verification": "uv run pytest -m e2e -k playthrough -q",
+      "passes": false,
+      "evidence": "NOT STARTED. Ceiling 10, rehearsed demo run >= 5 (project_context.md §4.1, §8)."
+    },
+    {
+      "id": "M6",
+      "description": "Characters react to the diverged world — per-turn state re-evaluation, turn-based, not concurrent. Single narration call per turn; state transitions deterministic in code. See project_context.md §4.3, §4.4.",
+      "verification": "uv run pytest -m integration -k reaction -q",
+      "passes": false,
+      "evidence": "NOT STARTED. Depends on M8, M5."
+    },
+    {
+      "id": "M7",
+      "description": "Consistency enforced with citations — 'every fact is checked, and we show you the receipt'; a checked claim can display the canon fact and its source location",
+      "verification": "uv run pytest -m integration -k citation -q",
+      "passes": false,
+      "evidence": "NOT STARTED. Depends on M1 (provenance). Requires distinguishing intentional divergence from accidental contradiction (project_context.md §5.5)."
+    },
+    {
+      "id": "S3",
+      "description": "SHOULD — Infinite Story Universe: replay a completed branch from another character's epistemic view (project_context.md §8.1). The closing demo beat; proves M5 and Infinite Story Universe simultaneously.",
+      "verification": "uv run pytest -m e2e -k replay_as_character -q",
+      "passes": false,
+      "evidence": "NOT STARTED. Mechanism is near-free given M8 — only the toggle is work. DO NOT START until all M-features pass."
+    },
+    {
+      "id": "S2",
+      "description": "SHOULD — Ripple visualization showing the cast and what each character now believes (not abstract fact-nodes)",
+      "verification": "uv run pytest -m e2e -k ripple_view -q",
+      "passes": false,
+      "evidence": "NOT STARTED. DO NOT START until all M-features pass."
+    },
+    {
+      "id": "S1",
+      "description": "SHOULD — audio narration via ElevenLabs",
+      "verification": "uv run pytest -m integration -k narration -q",
+      "passes": false,
+      "evidence": "NOT STARTED. EXT-2. DO NOT START until all M-features pass."
     }
   ]
 }

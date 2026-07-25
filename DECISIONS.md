@@ -174,3 +174,64 @@
   — it ships skills+plugin only, no MCP server, and the dev kit is a superset that already pulls that repo in;
   running both would double-install the same skills. **Watch item:** the dev-kit installer prints a deprecation
   notice — a future release will delegate skill installation to `databricks aitools`. Revisit then.
+
+---
+
+## 2026-07-25 (session 5): Problem statement selected and narrowed — INIT-01 closed
+
+> Full reasoning, all 13 decisions with rejected alternatives, and the mid-session corrections live in
+> **`docs/2026-07-25-product-definition-session.md`**. The product spec itself is **`project_context.md`**
+> (single source of truth; it declares its own supersessions in §12). Summarised here for the decision log.
+
+- **The brief is a menu, not a statement.** The official brief lists ~40 statements across 6 tracks
+  (P1-P6), so "capture the problem statement" was really a *selection + narrowing* decision. Selected:
+  **P1 Story Time Machine** (primary) + **P1 Infinite Story Universe** (secondary, now SHOULD-tier).
+- **Root problem = participation, not continuity.** User's framing: serialized fiction is passive by
+  construction. Continuity is the enabling constraint, not the problem. **Rejected:** the vault's
+  continuity-first framing — it produces a developer tool, not a product.
+- **Fan-fiction is the branch oracle** (the load-bearing idea). Interactive fiction has failed exactly
+  twice: hand-authored branches are coherent but the authoring cost explodes combinatorially
+  (Until Dawn/Bandersnatch); generated branches are affordable but incoherent (AI Dungeon, ~1.5M->350K).
+  Fan-fiction is a third path — branches pre-authored by the crowd, free, audience-filtered, and dense at
+  exactly the emotionally significant moments. The AI's job becomes *selection and enforcement*, not invention.
+- **Hero interaction = playthrough, not a single flip.** Up to 10 compounding choices (ceiling 10,
+  rehearsed run >= 5). **Rejected:** the friend-authored PRD's flip-one-decision loop — a diff viewer
+  cannot demonstrate compounding, which is the actual claim.
+- **Primary user = the Player; creator is a slide.** ⚠ This **overrides** `_PROBLEM VERDICT`'s bolded
+  "build for the creator/producer, not the passive listener." Its evidence is not disputed; the artifact is
+  judged on demonstrated concept, not revenue proximity. Recorded explicitly so it is not mistaken for an oversight.
+- **Corpus = the Dexter novels.** Ordinary reasons: real prose (genuine provenance), novels have endings
+  (a known destination makes branch outcomes measurable), deep first-person interiority, dense fan-fic coverage.
+  **Decisive reason:** the series' central engine *is* who-knows-what, which makes per-character epistemic
+  state — the hardest thing we build — the thing the audience is already watching. **Rejected:** public-domain
+  corpus (`PRD-KNOWLEDGE-BASE` A-4, on legal grounds now moot); an original story (no familiarity, small fact
+  base); Avengers as a literal corpus (films are not text, so the fact base would be fabricated — this objection
+  was independent of the legal one, which the user correctly waived for a hackathon artifact).
+- **Per-character epistemic state is a MUST**, in the data model from day one. Retrofitting "who witnessed
+  this" onto already-extracted facts means re-extracting everything.
+- **Reaction architecture: uniform data model + single narration call per turn.** State transitions are
+  deterministic in code; one LLM call renders the scene from the acting character's filtered view.
+  **Key rationale:** the epistemic guarantee comes from *what is absent from the assembled context*, not from
+  instructing a model to withhold — a fact never placed in the prompt cannot leak. This is simultaneously
+  ~6x cheaper and structurally stronger than one-agent-per-character. **Rejected:** all-canon-plus-rules in one
+  prompt (leaks invisibly); per-character agents (preserved as an upgrade path — it is a *runtime* change
+  requiring no data migration).
+- **Protagonist-ness is a rendering choice, not a stored property.** No PC/NPC asymmetry anywhere in storage;
+  character state never stored as narrative text; the renderer takes a character as a parameter. This makes
+  *Infinite Story Universe* nearly free and unlocks the closing demo beat: replay the same branch as Debra,
+  who visibly does not know what the audience just watched happen — proving both headline claims at once.
+- **Bounded choices now, free-form later.** 2-4 discrete options; no free text this build. Bounded choices can
+  be validated *before* being shown; free text forces generate-then-verify, where failures are visible on stage.
+- **Open, carried forward:** OD-1 fork-vs-tier (recommend **fork**; tier mislabels every deliberate divergence
+  as an error), OD-2 novel-vs-screen canon mismatch (silent corruption path — decide, don't discover),
+  OD-3 EXT-1 scraper contract (highest-risk unknown), OD-4 sparse fan-fic coverage, OD-5 product name, OD-6 rubric.
+
+## 2026-07-25 (session 5): `.claude/worktrees/` excluded from ruff
+
+- **Reason:** parallel sessions run in git worktrees under `.claude/worktrees/`. Those are separate checkouts
+  that run their own `make check`; linting them from the parent double-lints and makes **our** gate fail on
+  **their** in-progress code (this session: RUF001 in `reddit-fanfic-scraper`).
+- **Shape:** `extend-exclude = [".agents", ".claude/skills", ".claude/worktrees"]` — same rationale and pattern
+  as the two existing exclusions.
+- **Rejected:** fixing the violation in the other session's worktree (not our code, and it would recur on every
+  edit they make).

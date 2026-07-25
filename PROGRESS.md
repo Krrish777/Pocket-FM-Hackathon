@@ -4,14 +4,19 @@
 > `session_handoff.md`; decisions in `DECISIONS.md`; the machine task list is `feature_list.json`.
 
 ## Current State
-- **Phase:** Harness-hardening (pre-event). The real problem statement drops at the event **2026-07-25**;
-  theme (fixed) = Generative Storytelling. Goal until then = a warm, verified harness — NOT product features.
-- **Last commit:** _(none — checkpoint pending; ask before committing)_.
-- **Verification:** `make check` is **GREEN** — ruff (+`RUF`) + ruff-format + mypy (45 files) + pytest **7 passing**
-  (1 unit, 4 integration real-SQLite, 2 e2e). INIT-02…05 + HARDEN-01…04 pass; **INIT-01 blocked on the brief**;
-  HARDEN-05 deferred. Session 4 migrated conventions to native **`.claude/rules/`** (path-scoped), split testing
-  into two tiers (pytest + DeepEval), reorganized `research/` by domain, and added a `reference/` docs hub —
-  `make check` still GREEN.
+- **Phase:** **PRODUCT** (the brief has landed; harness phase is closed). The problem statement is selected,
+  narrowed, and written up — **`project_context.md` is the single source of truth for what we are building
+  and why. Read it before building anything.**
+- **Product in one line:** a playable branching layer over the **Dexter novels** — pick a character, play
+  forward through choices mined from **fan-fiction**, with every character remembering only what they
+  actually learned. Track: P1 Story Time Machine + Infinite Story Universe.
+- **Runway:** 24–36h, 2–4 people. Parallel sessions are live in `.claude/worktrees/`
+  (`reddit-fanfic-scraper` = the EXT-1 ingestion dependency; `knowledge-base`).
+- **Last commit:** `8d70e1b` "regular updates" — created by a **parallel session** that swept the shared
+  index (164 files, incl. this session's 4 doc files). See Known Issues.
+- **Verification:** `make check` is **GREEN** — exit code 0, **7 passing** (1 unit, 4 integration real-SQLite,
+  2 e2e). INIT-01…05 + HARDEN-01…04 pass. HARDEN-05 deferred (deprioritised below product work).
+  **All product features M1–M8 / S1–S3 are `passes:false` — nothing product-side is built yet.**
 
 ## Completed
 - [x] **Conventions system** — migrated (session 4) to native **`.claude/rules/`**: 7 path-scoped rules that
@@ -77,6 +82,33 @@
 - [x] **research/ reorganized** by domain + `research/README.md`; **new `reference/llms.txt`** hub of upstream
       dependency docs (link-not-vendor), wired into CLAUDE.md/AGENTS.md (research = learned-from, reference = go-read).
 
+### Session 5 (2026-07-25) — the brief landed; problem statement selected and narrowed (INIT-01 ✅)
+- [x] **INIT-01 closed.** Established that the official brief is a **menu** (~40 statements / 6 tracks), so
+      "capture the problem statement" was a *selection + narrowing* decision, not a copy-paste. Selected
+      **P1 Story Time Machine** + **Infinite Story Universe**.
+- [x] **Resolved the repo's central unresolved conflict**: `_PROBLEM VERDICT` said build for the *creator*;
+      the friend-authored PRD built for the *listener*. Settled: **the Player is primary, creator is a slide** —
+      an explicit override of the vault's own recommendation, recorded as such in `DECISIONS.md`.
+- [x] **Wrote `project_context.md`** (13 §, ~390 lines): problem, product, users, exact core loop, glossary,
+      corpus, MUST/SHOULD/OUT scope, demo proof, external deps, **17 settled decisions**, **6 open items**
+      (each with ID/owner/recommendation/deadline), and explicit **supersessions** of the friend's PRD,
+      `_PROBLEM VERDICT`, and parts of `PRD-KNOWLEDGE-BASE.md`.
+- [x] **Wrote `docs/2026-07-25-product-definition-session.md`** — decision provenance: 13 decisions each with
+      *what was chosen, why, and what was rejected*, plus a corrections table (5 mid-session reversals,
+      including two of the assistant's own errors). New top-level `docs/` dir (not yet in `structure.md`).
+- [x] **Key product ideas established** (neither doc had them): fan-fiction is the **branch oracle** (a third
+      path past the hand-authored-vs-generated dead end); **intentional divergence vs accidental contradiction**;
+      **protagonist-ness is a rendering choice, not a stored property** — which makes Infinite Story Universe
+      nearly free and unlocks the closing demo beat (replay the same branch as Debra).
+- [x] **Patched** `CLAUDE.md` + `AGENTS.md` (mirror kept in sync) to point at `project_context.md`; verified
+      INIT-01's own verification command passes.
+- [x] **Seeded `feature_list.json` with the product phase** — M1–M8 (MUST) + S1–S3 (SHOULD), each with a
+      verification command, all `passes:false`. Build order flagged: **M8 first** (only decision expensive to retrofit).
+- [x] **Fixed the gate:** added `.claude/worktrees` to ruff `extend-exclude` — parallel-session worktrees are
+      separate checkouts that run their own `make check`; linting them from the parent made our gate fail on
+      their in-progress code. `make check` re-verified GREEN (exit 0, 7 passed).
+- **No product code written this session** — by design; this was an elicitation session.
+
 ## Known Issues
 - **L3 E2E is partial**: the full `premise → episode → persist` request path is NOT yet E2E-tested — the LLM
   adapter is deferred to the event brief and `StubLLM.generate` raises by design. Today's E2E proves boot +
@@ -87,16 +119,34 @@
 - The project-level FastAPI skill is a **symlink** (`.claude/skills/fastapi` → `.agents/skills/fastapi`);
   confirm git tracks it correctly on Windows before relying on it committed.
 - CLAUDE.md/AGENTS.md are manual mirrors (drift risk). Clock-out is prose-only (not enforced).
+- **⚠ The git index is shared across parallel sessions.** Session 5 staged 4 files for review; a parallel
+  session then ran a commit that swept the whole index into `8d70e1b` "regular updates" (164 files). Staging
+  is **not** a safe hold when other sessions are live — only an uncommitted working tree is. Coordinate before
+  staging, or expect your work to be committed by someone else under someone else's message.
+- **New top-level `docs/` dir** (session 5) is not yet described in `.claude/rules/structure.md`, which is an
+  always-on rule and is meant to be an accurate map of the tree. Add it, or move the file.
+- **`make check` exit codes:** do not pipe `make check` into `tail`/`head` — the pipeline reports the *filter's*
+  exit code, not make's, and a red gate reads as green. Redirect to a file and check `$?` instead.
 
 ## Next Steps
-1. **HARDEN-05 (deferred):** author local `sqlmodel` / `pytest` / thin `pydantic` skills modeled on the
-   FastAPI skill structure (no standalone `sqlalchemy` skill — folds into `sqlmodel`).
-2. Close the E2E gap: a deterministic **offline/fake LLM** + a persistence-backed route so the full
-   generate→persist path is L3-testable without a key. Add `prompts/episode_generation/v1.jinja`.
-3. Persist the `StoryBible` canonical store in SQLite too (mirror the episode-log adapter pattern).
-4. **At the event (2026-07-25):** capture the real brief in `CLAUDE.md` (INIT-01), seed product features,
-   pick the LLM/agent framework (LangChain/LangGraph/CrewAI/Pydantic-AI/raw) + drop in the OpenAI key.
-5. When the brief unblocks it: add the `deepeval` dep (eval group), generate goldens (30–50), fill thresholds in
-   `evals/metrics/metrics.py`, write an `evals/cases/` suite + `make eval`. Harness scaffolded (session 4).
-6. Frontend convention draft is parked in `temp/frontend-conventions-draft/` (gitignored) — re-home as
-   `.claude/rules/frontend-*.md` (`paths: **/*.tsx`) when the Next.js app actually starts.
+> Ordered. WIP = 1. `project_context.md` §7 defines every done-condition; do not re-derive scope from memory.
+
+1. **M8 — the uniform character state schema. BUILD THIS FIRST.** All 5 cast members share one identical
+   state structure (knowledge set over one world state + traits + goals); **no PC/NPC asymmetry in storage**;
+   character state **never** stored as narrative text; the renderer takes a character as a **parameter**.
+   Rationale: it is the only decision in the product that is expensive to retrofit, and M5 + S3 both depend
+   on it. Spec: `project_context.md` §4.4.
+2. **Resolve OD-1 (fork vs. tier)** before the storage layer is written. Recommendation: **fork** — a tier
+   model mislabels every deliberate divergence as an error, which is fatal for fan-fiction.
+3. **Get the EXT-1 contract from the scraper session (OD-3)** — highest-risk unknown in the project; everything
+   downstream of ingestion depends on a shape nobody has written down. Then fill `project_context.md` §9.
+4. **Resolve OD-2 (novel vs. screen canon)** *before* any fan-fiction is ingested. Our KB is novel-based;
+   Dexter fan-fiction is largely screen-based — a silent corruption path.
+5. **M5 — per-character epistemic memory** (depends on M8). Acceptance: a character who did not learn a fact
+   at step 4 still does not know it at step N, for all N > 4.
+6. Then **M1 → M4 → M2 → M3 → M6 → M7**. Only after every M passes: **S3** (replay-as-Debra, the closing beat),
+   then S2, S1.
+7. **Deferred / unblocked-by-brief but lower priority than the above:** HARDEN-05 (local sqlmodel/pytest skills);
+   the E2E gap (deterministic offline LLM so generate→persist is L3-testable without a key); `StoryBible` in
+   SQLite; the `deepeval` eval harness (goldens can now be generated — the brief no longer blocks it);
+   re-homing the frontend convention draft from `temp/frontend-conventions-draft/` when a UI actually starts.
