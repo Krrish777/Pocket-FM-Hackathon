@@ -115,3 +115,76 @@ def test_budget_must_be_positive() -> None:
     store = _FakeStore([])
     with pytest.raises(ValueError):
         WorkingMemory(store).assemble("canon", AUDIENCE, chapter=5, budget=0)
+
+
+def test_assemble_excludes_a_superseded_fact_at_a_chapter_after_supersession() -> None:
+    """At ch200, only the replacement must appear — never the superseded fact too.
+
+    Without the is_valid_at filter in assemble(), a packet at ch200 would contain BOTH
+    "Kael loyal to Crown" (superseded, but visible_to still returns it because it was
+    told at ch1) and "Kael loyal to rebels" (the replacement) — presenting two
+    contradictory truths to the model at once.
+    """
+    store = _FakeStore(
+        [
+            _fact(
+                "f-old",
+                "kael",
+                predicate="loyal_to",
+                object_id="the_crown",
+                valid_from=1,
+                valid_to=180,
+                revealed_at=1,
+                status=FactStatus.INVALIDATED,
+                superseded_at=RECORDED,
+            ),
+            _fact(
+                "f-new",
+                "kael",
+                predicate="loyal_to",
+                object_id="the_rebels",
+                valid_from=180,
+                valid_to=None,
+                revealed_at=180,
+            ),
+        ]
+    )
+    packet = WorkingMemory(store).assemble("canon", AUDIENCE, chapter=200)
+    assert {f.id for f in packet.facts} == {"f-new"}
+
+
+def test_assemble_includes_a_superseded_fact_at_a_chapter_inside_its_old_window() -> (
+    None
+):
+    """At ch100 — inside the old fact's validity window — the old truth must survive.
+
+    This is the replay case the product depends on: a packet assembled at a point in
+    the story before supersession must reflect what was true and known THEN, not the
+    version of canon that holds now.
+    """
+    store = _FakeStore(
+        [
+            _fact(
+                "f-old",
+                "kael",
+                predicate="loyal_to",
+                object_id="the_crown",
+                valid_from=1,
+                valid_to=180,
+                revealed_at=1,
+                status=FactStatus.INVALIDATED,
+                superseded_at=RECORDED,
+            ),
+            _fact(
+                "f-new",
+                "kael",
+                predicate="loyal_to",
+                object_id="the_rebels",
+                valid_from=180,
+                valid_to=None,
+                revealed_at=180,
+            ),
+        ]
+    )
+    packet = WorkingMemory(store).assemble("canon", AUDIENCE, chapter=100)
+    assert {f.id for f in packet.facts} == {"f-old"}

@@ -105,15 +105,18 @@ def test_scope_tracked_facts_do_not_leak_to_a_knower_outside_the_scope(
     assert {f.id for f in store.visible_to("canon", "holmes", 9999)} == {"f-secret"}
 
 
-def test_an_invalidated_fact_revealed_before_supersession_does_not_leak_after_it(
+def test_an_invalidated_fact_stays_in_the_spoiler_guard_but_not_current_truth(
     store: SqliteCanonStore,
 ) -> None:
-    """Supersession must not resurrect a fact's visibility past its own reveal.
+    """`visible_to` is a pure spoiler guard; it is not a currency check.
 
-    `visible_to` is governed by `is_visible_to`, which requires `status is ACTIVE` —
-    unlike `as_of`, which deliberately keeps INVALIDATED rows queryable at their own
-    story time. The two must not be conflated: an invalidated fact staying visible
-    to the audience after it was superseded would be a leak of stale canon.
+    CORRECTED: this test previously asserted that `store.visible_to` excludes an
+    INVALIDATED fact at any chapter after its supersession — treating "was this told"
+    and "is this still true" as one question. They are not. `is_visible_to` excludes
+    only QUARANTINED (never-canon); a superseded fact that was told is still knowable,
+    which is what makes the replay mechanic work. The store-level guard therefore
+    returns BOTH rows here — currency (excluding a stale fact from a CURRENT-chapter
+    packet) is `is_valid_at`'s job, applied by `WorkingMemory.assemble`, not the store.
     """
     store.append(_fact(id="f-old", revealed_at=1))
     store.supersede(
@@ -125,8 +128,17 @@ def test_an_invalidated_fact_revealed_before_supersession_does_not_leak_after_it
         superseded_at=SUPERSEDED_AT,
     )
     visible_ids = {f.id for f in store.visible_to("canon", AUDIENCE, 9999)}
-    assert "f-old" not in visible_ids, LEAK_SEVERITY
-    assert visible_ids == {"f-new"}
+    assert visible_ids == {"f-old", "f-new"}
+
+    # The currency check: at chapter 9999, only f-new is still TRUE, even though both
+    # facts remain in the spoiler-guard's visible set above.
+    facts_by_id = {f.id: f for f in store.all_facts("canon")}
+    current_ids = {
+        fact_id
+        for fact_id, fact in facts_by_id.items()
+        if fact_id in visible_ids and fact.is_valid_at(9999)
+    }
+    assert current_ids == {"f-new"}
 
 
 def test_over_withholding_is_reported_not_failed(

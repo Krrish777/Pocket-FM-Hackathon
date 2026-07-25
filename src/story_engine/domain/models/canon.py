@@ -204,8 +204,16 @@ class Fact(DomainModel):
         validity: a fact that stopped being true is still safely *knowable* (Kael's old
         loyalty is not a spoiler). Callers wanting current truth compose with
         `is_valid_at`.
+
+        Excludes only QUARANTINED, not every non-ACTIVE status: QUARANTINED and
+        INVALIDATED mean different things. QUARANTINED never reached canon and must
+        stay invisible everywhere, always. INVALIDATED means the fact WAS canon and
+        was later superseded — it is still knowable at points where it held, which is
+        exactly the "Kael's old loyalty" example above. Hiding INVALIDATED facts
+        unconditionally would make the fact invisible even at chapters where it was
+        both true and already public, contradicting this docstring's own promise.
         """
-        if self.status is not FactStatus.ACTIVE:
+        if self.status is FactStatus.QUARANTINED:
             return False
         return self.is_revealed_by(chapter) and self.is_known_by(knower)
 

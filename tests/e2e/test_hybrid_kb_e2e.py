@@ -147,11 +147,11 @@ def test_hybrid_knowledge_base_end_to_end(tmp_path: Path) -> None:
     )
 
     # --- SUPERSESSION across all three layers --------------------------------------------
-    # Snapshot the graph BEFORE the supersede: `is_visible_to` gates on status ACTIVE
-    # unconditionally (not on the queried chapter), so once a fact is INVALIDATED it is
-    # excluded from every future LoreGraph regardless of story time. The "early" graph
-    # that should still show kael's old loyalty therefore has to be captured before the
-    # supersede call, not merely queried at an earlier chapter afterward.
+    # Snapshot the graph before AND after the supersede at the same chapter: `is_visible_to`
+    # excludes only QUARANTINED, not every non-ACTIVE status, so an INVALIDATED fact stays
+    # visible at chapters inside its old validity window regardless of when it was queried
+    # relative to the supersede call. The pre-supersede snapshot is kept here anyway to
+    # prove `relationship_diff` reports the two changed edges either way.
     early = LoreGraph.from_facts(reopened.all_facts("canon"), AUDIENCE, chapter=100)
 
     reopened.supersede(
@@ -163,10 +163,9 @@ def test_hybrid_knowledge_base_end_to_end(tmp_path: Path) -> None:
         superseded_at=CORRECTED,
     )
 
-    # as_of DOES include INVALIDATED rows (only QUARANTINED is excluded there): a
-    # superseded fact is still canon at its own story-time window, so chapter 100
-    # (before the close at 180) still resolves to the OLD value even though the row's
-    # status is now INVALIDATED. This is the documented as_of / visible_to asymmetry.
+    # as_of and visible_to now AGREE on INVALIDATED rows: a superseded fact is still
+    # canon at its own story-time window, so chapter 100 (before the close at 180)
+    # still resolves to the OLD value even though the row's status is now INVALIDATED.
     old_value = reopened.as_of("canon", "kael", "loyal_to", 100)
     new_value = reopened.as_of("canon", "kael", "loyal_to", 200)
     assert old_value is not None and old_value.object_id == "crown"
@@ -200,4 +199,20 @@ def test_hybrid_knowledge_base_end_to_end(tmp_path: Path) -> None:
     final_packet = WorkingMemory(final).assemble("canon", AUDIENCE, chapter=200)
     assert "f-defect" in {f.id for f in final_packet.facts}, (
         "a freshly assembled packet after the second restart must reflect the correction"
+    )
+    assert "f-loyal" not in {f.id for f in final_packet.facts}, (
+        "the superseded fact must not coexist with its replacement in a current packet"
+    )
+
+    # --- REPLAY: a packet assembled at the earlier chapter still reflects the old truth --
+    # This is the core replay mechanic the product depends on: revisiting chapter 100
+    # after the correction must show kael's loyalty to the crown, not a retroactively
+    # rewritten history where the correction always applied.
+    replay_packet = WorkingMemory(final).assemble("canon", AUDIENCE, chapter=100)
+    assert "f-loyal" in {f.id for f in replay_packet.facts}, (
+        "REPLAY BUG: a superseded fact must still surface at a chapter inside its old "
+        "validity window"
+    )
+    assert "f-defect" not in {f.id for f in replay_packet.facts}, (
+        "the replacement fact must not leak backward before it became true"
     )

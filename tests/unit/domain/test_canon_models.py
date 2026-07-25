@@ -270,13 +270,23 @@ def test_quarantined_fact_is_visible_to_nobody() -> None:
     assert fact.is_visible_to(AUDIENCE, 9999) is False
 
 
-def test_invalidated_fact_is_visible_to_nobody() -> None:
-    """Supersession sets INVALIDATED, not QUARANTINED — both must hide the fact."""
+def test_invalidated_fact_is_still_visible_at_a_chapter_inside_its_old_window() -> None:
+    """A superseded fact is still knowable at points where it was true and public.
+
+    This is the regression that would have caught the visibility bug: Kael is loyal to
+    the Crown from chapter 1, revealed at chapter 1, then superseded at chapter 180. A
+    packet assembled at chapter 100 — a moment when that loyalty was both true and
+    already public — must still surface it. `is_visible_to` is the spoiler guard, not a
+    currency check; `is_valid_at` answers currency separately.
+    """
     fact = _fact(
+        valid_from=1,
+        valid_to=180,
+        revealed_at=1,
         status=FactStatus.INVALIDATED,
         superseded_at=datetime(2026, 7, 25, 13, 0, tzinfo=UTC),
     )
-    assert fact.is_visible_to(AUDIENCE, 9999) is False
+    assert fact.is_visible_to(AUDIENCE, 100) is True
 
 
 def test_fact_round_trips_through_model_dump() -> None:

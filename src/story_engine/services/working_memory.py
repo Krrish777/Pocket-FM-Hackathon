@@ -58,12 +58,19 @@ class WorkingMemory:
         visible = self._store.visible_to(fork_id, knower, chapter)
         withheld = self._store.withheld_from(fork_id, knower, chapter)
 
+        # visible_to answers "may this be told" (spoiler guard); it now correctly
+        # includes superseded-but-knowable facts. is_valid_at answers "is this true
+        # NOW". A prompt needs both, or a packet could hand the model both a fact and
+        # its replacement (e.g. "Kael loyal to Crown" AND "Kael loyal to rebels") as
+        # simultaneously true.
+        current = tuple(f for f in visible if f.is_valid_at(chapter))
+
         focus = set(focus_entities)
         # Stable sort on a boolean key: focus facts first, original order preserved within
         # each group, so the packet is reproducible across runs. A focus entity can appear
         # as either endpoint of a fact, so both are checked.
         ordered = sorted(
-            visible,
+            current,
             key=lambda f: (
                 not (
                     f.subject_id in focus
