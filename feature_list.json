@@ -1,0 +1,79 @@
+{
+  "$schema_note": "Machine source of truth for work. Each feature is {id, description, verification, passes, evidence}. passes starts false and is flipped to true ONLY by its verification command succeeding — do not hand-edit. One feature active at a time (WIP=1). JSON on purpose so it is not casually rewritten. See CLAUDE.md > Feature List Rules.",
+  "meta": {
+    "phase": "initialization",
+    "note": "These are initialization-phase features (get the harness runnable), NOT story-engine business features. Seed real product features here once the hackathon problem statement is known (see BACKLOG.md)."
+  },
+  "features": [
+    {
+      "id": "INIT-01",
+      "description": "Hackathon problem statement is captured in CLAUDE.md and broken into a backlog",
+      "verification": "! grep -q 'Problem statement: `TODO`' CLAUDE.md",
+      "passes": false,
+      "evidence": ""
+    },
+    {
+      "id": "INIT-02",
+      "description": "`make setup` creates the environment and installs dependencies from scratch",
+      "verification": "make setup",
+      "passes": true,
+      "evidence": "2026-07-24: `uv sync` installed 29 runtime pkgs + dev group (ruff/mypy/pytest/pytest-cov). Fixed: dev tools moved from [project.optional-dependencies] extra to [dependency-groups] so plain `uv sync` installs them."
+    },
+    {
+      "id": "INIT-03",
+      "description": "The story_engine package is importable from the src/ layout",
+      "verification": "uv run python -c \"import story_engine\"",
+      "passes": true,
+      "evidence": "2026-07-24: `uv run python -c \"import story_engine\"` exits 0 (editable install of src/ layout)."
+    },
+    {
+      "id": "INIT-04",
+      "description": "`make check` runs ruff + mypy + pytest with at least one passing example test",
+      "verification": "make check",
+      "passes": true,
+      "evidence": "2026-07-24: ruff clean, format clean (100 files), mypy `Success: no issues found in 40 source files`, pytest 1 passed. Fixes: StrEnum (UP042), .agents excluded from ruff, isinstance-narrow in api/errors.py."
+    },
+    {
+      "id": "INIT-05",
+      "description": "`./init.sh` runs the session startup path (env check + quick smoke) without error",
+      "verification": "bash init.sh",
+      "passes": true,
+      "evidence": "2026-07-24: `bash init.sh` exits 0 — env check + consistency gate (ruff/mypy/pytest) all green."
+    },
+    {
+      "id": "HARDEN-01",
+      "description": "SQLite persistence adapter (SQLModel) implements EpisodeLogRepositoryPort against a real DB",
+      "verification": "uv run pytest -m integration -q",
+      "passes": true,
+      "evidence": "2026-07-24 (s2): 4 integration tests green (append/get_recent ordering, tuple<->JSON round-trip, get_by_episode hit/miss, series isolation) against real tmp SQLite. DetachedInstanceError fixed (map Row->domain inside session scope)."
+    },
+    {
+      "id": "HARDEN-02",
+      "description": "The full app boots end-to-end and the SQLite schema initializes at startup",
+      "verification": "uv run pytest -m e2e -q",
+      "passes": true,
+      "evidence": "2026-07-24 (s2): 2 e2e tests green via TestClient (openapi served under api_v1_str, /episodes route mounted, episode_summary table created by init_db). NOTE: full generate->persist request path still blocked on the deferred LLM adapter."
+    },
+    {
+      "id": "HARDEN-03",
+      "description": "3-layer Validation Hierarchy (L1 static / L2 runtime / L3 e2e) is wired into `make check` and documented",
+      "verification": "make check",
+      "passes": true,
+      "evidence": "2026-07-24 (s2): make check runs ruff+format+mypy (L1) -> unit+integration (L2) -> e2e (L3); 7 tests pass, mypy clean on 45 files. Method documented in tests/README.md (sourced from Harness-Engineering docs)."
+    },
+    {
+      "id": "HARDEN-04",
+      "description": "find-skills meta-skill + official FastAPI skill installed and verified (project-level)",
+      "verification": "test -e .claude/skills/fastapi/SKILL.md && test -e $HOME/.claude/skills/find-skills/SKILL.md",
+      "passes": true,
+      "evidence": "2026-07-24 (s2): find-skills installed to ~/.claude/skills; official fastapi/fastapi@fastapi (100.8K stars, 3 security audits) installed project-level; content verified (321-line SKILL.md + 6 references). Evaluation matrix recorded in DECISIONS.md + memory."
+    },
+    {
+      "id": "HARDEN-05",
+      "description": "Author local sqlmodel/pytest/thin-pydantic skills modeled on the FastAPI skill structure",
+      "verification": "test -e .claude/skills/sqlmodel/SKILL.md && test -e .claude/skills/pytest/SKILL.md",
+      "passes": false,
+      "evidence": "DEFERRED to next session (user decision) — focus this session was persistence + validation method."
+    }
+  ]
+}

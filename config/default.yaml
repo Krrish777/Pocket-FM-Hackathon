@@ -1,0 +1,17 @@
+# Non-secret runtime config. Secrets live in .env (never here). Merged by
+# src/story_engine/config/settings.py (pydantic-settings) — env vars override these.
+# Environment overrides: config/dev.yaml, config/prod.yaml.
+
+generation:
+  default_model: claude-sonnet-4
+  max_output_tokens: 2000
+  # Temperature by task: low for structured/continuity-critical, high for prose.
+  temperature_prose: 0.8
+  temperature_structured: 0.2
+
+cost:
+  request_budget_usd: 0.50
+
+retry:
+  max_attempts: 3
+  backoff_seconds: 1.0

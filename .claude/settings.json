@@ -1,0 +1,15 @@
+{
+  "$comment": "Project-scoped Claude Code settings. One warn-only, non-blocking SessionStart clock-in hook that surfaces the handoff state. Coding conventions are delivered via .claude/rules/ (path-scoped auto-loading) — this replaced the former PreToolUse conventions-reminder hook. Does NOT touch permissions or env. SessionStart here STACKS with (does not replace) the global remember/context-mode SessionStart hooks.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/session-clock-in.mjs\""
+          }
+        ]
+      }
+    ]
+  }
+}

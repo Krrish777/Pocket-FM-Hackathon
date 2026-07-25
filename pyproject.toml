@@ -1,0 +1,86 @@
+[project]
+name = "story-engine"
+version = "0.0.1"
+description = "AI-powered generative storytelling engine (Pocket FM Hackathon)."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "pydantic>=2",
+    "pydantic-settings>=2",
+    "jinja2>=3",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "typer>=0.12",
+    "sqlmodel>=0.0.22",  # ORM for the SQLite persistence adapter (wraps SQLAlchemy + Pydantic)
+    # LLM SDK: add the one you use, e.g. "anthropic>=0.40" or "openai>=1.50"
+    # Structured output: "instructor>=1"
+    # Memory/RAG lane: "mem0ai>=0.1" (associative recall only — not the canonical store)
+]
+
+# Dev tooling lives in a PEP 735 dependency-group (NOT an extra): `uv sync` installs
+# it by default, so `make setup` (= `uv sync`) makes `make check` runnable from scratch.
+# Extras are for consumer-facing optional runtime features; a linter/type-checker/test
+# runner is never that. See INIT-02…04 in feature_list.json.
+[dependency-groups]
+dev = [
+    "ruff>=0.6",
+    "mypy>=1.11",
+    "pytest>=8",
+    "pytest-cov>=5",
+    "httpx>=0.27",  # required by fastapi.testclient.TestClient for the L3 E2E boot test
+]
+
+[project.scripts]
+story-engine = "story_engine.cli.main:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/story_engine"]
+
+# ---- Tooling (distilled from .claude/rules/structure.md) ----
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+src = ["src", "tests"]
+# `.agents/` holds vendored skill scaffolding (e.g. deepeval templates) — not our code, don't lint/format it.
+extend-exclude = [".agents"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "UP", "B", "C4", "SIM", "TID", "PTH", "RET", "RUF"]
+ignore = ["E501"]  # line length handled by the formatter
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401", "E402"]
+"tests/**/*" = ["S101"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["story_engine"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true                 # bundles disallow_untyped_defs, check_untyped_defs, warn_return_any, … (don't re-list)
+no_implicit_optional = true   # the one useful flag NOT already in --strict
+
+[tool.pytest.ini_options]
+minversion = "9.0"            # pytest 9 is a hard cutover: nose-style setup/teardown & yield-tests now ERROR
+addopts = "-ra --strict-markers --strict-config --import-mode=importlib"
+testpaths = ["tests"]
+markers = [
+    "slow: slow tests",
+    "integration: L2 — hits real adapters (real SQLite, tmp file)",
+    "e2e: L3 — boots the whole app / exercises the system end-to-end",
+]
+
+[tool.coverage.run]
+source = ["story_engine"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+# fail_under = 80   # enable once the suite is meaningful (see 06-testing.md)

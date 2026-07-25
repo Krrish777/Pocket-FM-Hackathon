@@ -1,0 +1,48 @@
+# Secrets — NEVER commit
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Local SQLite databases (created at runtime by bootstrap)
+*.db
+*.sqlite3
+
+# Environments
+.venv/
+venv/
+.python-version
+
+# Tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Data artifacts (keep the folders via .gitkeep, ignore contents)
+data/raw/*
+data/interim/*
+data/processed/*
+data/external/*
+!data/**/.gitkeep
+
+# Eval / run outputs
+evals/reports/
+
+# Notebooks scratch
+.ipynb_checkpoints/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+temp/

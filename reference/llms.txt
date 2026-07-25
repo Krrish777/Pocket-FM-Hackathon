@@ -1,0 +1,38 @@
+# Story Engine — External Dependency Docs (per-dep hub)
+
+> **Go here first when you need to READ upstream docs for a dependency.** Each dep has its own folder:
+> `reference/<dep>/README.md` is a curated, Story-Engine-tailored note (what it is, our pin, verified
+> latest version, task→doc links, gotchas that bite us). Where the dependency publishes an upstream
+> `llms.txt`, the raw file is vendored beside the note as `reference/<dep>/llms.txt` (offline, greppable).
+>
+> Split per-dep (from a single index) on 2026-07-24 so an agent grabs just the one dep it's touching.
+> Versions verified 2026-07 — **re-check before relying on a pin.** Distinct from `research/llms.txt`,
+> which indexes what our *own conventions* were distilled FROM (provenance, not dependency docs).
+
+## Backend (installed)
+- **pydantic** (+ pydantic-settings) → [`pydantic/`](pydantic/README.md) · vendored `llms.txt` ✅ · 2.13.4 / 2.14.2
+- **jinja2** → [`jinja2/`](jinja2/README.md) · no upstream llms.txt · 3.1.6
+- **fastapi** (+ uvicorn) → [`fastapi/`](fastapi/README.md) · no upstream llms.txt (tiangolo family) · 0.139.2 / 0.51.0
+- **typer** → [`typer/`](typer/README.md) · no upstream llms.txt · 0.27.0
+- **sqlmodel** → [`sqlmodel/`](sqlmodel/README.md) · no upstream llms.txt · 0.0.39 (pre-1.0)
+
+## Tooling
+- **uv** → [`uv/`](uv/README.md) · vendored `llms.txt` ✅ · 0.11.32
+- **ruff** → [`ruff/`](ruff/README.md) · vendored `llms.txt` ✅ · 0.16.0 (⚠️ breaking-default release)
+- **mypy** → [`mypy/`](mypy/README.md) · no upstream llms.txt · 2.3.0
+- **pytest** (+ pytest-cov, httpx) → [`pytest/`](pytest/README.md) · no upstream llms.txt · 9.1.1 / 7.1.0 / 0.28.1
+
+## LLM / Model
+- **claude / anthropic** → [`claude/`](claude/README.md) · vendored `llms.txt` ✅ · SDK 0.119.0 · models `claude-opus-4-8`, `claude-sonnet-5`, `claude-haiku-4-5`, `claude-fable-5`
+  - ⚠️ Our `settings.default_model="claude-sonnet-4"` is stale/invalid; sampling params (`temperature`/`top_p`) may 400 on current models — see the note.
+
+## Frontend (future — NOT yet built)
+- **nextjs** → [`nextjs/`](nextjs/README.md) · vendored `llms.txt` ✅ · 16.2.11 (App Router)
+- **react** → [`react/`](react/README.md) · vendored `llms.txt` ✅ · 19.2 · Compiler 1.0
+- **shadcn** → [`shadcn/`](shadcn/README.md) · vendored `llms.txt` ✅ · CLI 4.14.1 (copy-in, not a dep)
+- **tailwind** → [`tailwind/`](tailwind/README.md) · no upstream llms.txt · v4.3.x
+
+## Conventions
+- Each folder: `README.md` (curated note) + optional `llms.txt` (verbatim upstream, only where one exists).
+- Vendored `llms.txt` = offline speed; the README's task→doc links point at live upstream docs for current detail.
+- "no upstream llms.txt" almost always = tiangolo family (FastAPI/SQLModel/Typer) or a docs site that doesn't publish one — re-probe before assuming.

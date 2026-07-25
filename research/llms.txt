@@ -1,0 +1,67 @@
+# Story Engine — Research Source Index (llms.txt)
+
+> A navigable index of the authoritative documentation used to build this project's conventions and
+> scaffold. Grouped by topic; each entry links a source and says what it covers. Use this to jump straight
+> to the right doc instead of re-searching. Full distilled notes live in the domain subfolders
+> (`research/<domain>/*.md`) — see `research/README.md` for the map; the applied rules live in `.claude/rules/`.
+
+## Claude Code (harness / .claude config)
+- [Memory](https://code.claude.com/docs/en/memory): CLAUDE.md hierarchy, ≤200-line guidance, `@import`, `.claude/rules/`, AGENTS.md, auto-memory.
+- [Hooks](https://code.claude.com/docs/en/hooks): event list, PreToolUse/SessionStart JSON fields, `additionalContext`, exit-code semantics, Stop vs SessionEnd.
+- [Settings](https://code.claude.com/docs/en/settings): settings.json/local, precedence, committed vs gitignored, `.claude/` contents, `.mcp.json`.
+- [Skills](https://code.claude.com/docs/en/skills): SKILL.md format, frontmatter, commands merged into skills, invocation control.
+- [Subagents](https://code.claude.com/docs/en/sub-agents): `.claude/agents/*.md` format, delegation, own context window.
+- [Output styles](https://code.claude.com/docs/en/output-styles): personas, `.claude/output-styles`.
+
+## Python style & tooling
+- [PEP 8](https://peps.python.org/pep-0008/): style, naming, imports, whitespace. [PEP 257](https://peps.python.org/pep-0257/): docstrings. [PEP 20](https://peps.python.org/pep-0020/): Zen.
+- [PEP 484](https://peps.python.org/pep-0484/) / [585](https://peps.python.org/pep-0585/) / [604](https://peps.python.org/pep-0604/): typing — `list[str]`, `X | None`.
+- [Google Python Style Guide](https://google.github.io/styleguide/pyguide.html): rules beyond PEP 8.
+- [Ruff](https://docs.astral.sh/ruff/): lint + import sort + format; subsumes flake8/isort/pyupgrade/black.
+- [mypy config](https://mypy.readthedocs.io/en/stable/config_file.html): strict flags.
+- [pytest good practices](https://docs.pytest.org/en/stable/explanation/goodpractices.html): src layout, fixtures, import modes.
+- [uv projects](https://docs.astral.sh/uv/guides/projects/): env/deps, `uv.lock`, `--frozen`, `[project.scripts]`.
+
+## Python OOP, errors, logging
+- [dataclasses](https://docs.python.org/3/library/dataclasses.html): frozen/slots/default_factory. [enum](https://docs.python.org/3/howto/enum.html). [property](https://docs.python.org/3/library/functions.html#property).
+- [PEP 544](https://peps.python.org/pep-0544/): Protocols (structural typing). [abc](https://docs.python.org/3/library/abc.html): ABCs.
+- [errors tutorial](https://docs.python.org/3/tutorial/errors.html) + [PEP 3134](https://peps.python.org/pep-3134/): exception hierarchy, `raise ... from`.
+- [logging HOWTO](https://docs.python.org/3/howto/logging.html): `getLogger(__name__)`, NullHandler, dictConfig.
+- [OWASP Logging Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html): never log secrets/PII.
+- [structlog stdlib](https://www.structlog.org/en/stable/standard-library.html): structured logging setup.
+
+## Pydantic v2
+- [Models](https://pydantic.dev/docs/validation/latest/concepts/models/): ConfigDict, frozen, extra, validators, computed_field.
+- [Dataclasses](https://pydantic.dev/docs/validation/latest/concepts/dataclasses/): when vs BaseModel.
+- [pydantic-settings](https://github.com/pydantic/pydantic-settings): BaseSettings, SecretStr, env loading.
+
+## LLM / GenAI engineering
+- [12-Factor Agents](https://github.com/humanlayer/12-factor-agents): own your prompts/context; LLM at key points.
+- [Instructor](https://python.useinstructor.com/): structured output, `response_model`, validation + auto-retry.
+- [Defeating Nondeterminism in LLM Inference](https://thinkingmachines.ai/blog/defeating-nondeterminism-in-llm-inference/): why temp-0 isn't deterministic (batch invariance).
+- [seed & temperature](https://dylancastillo.co/posts/seed-temperature-llms.html): reproducibility limits, system_fingerprint.
+- [MLflow Prompt Registry](https://mlflow.org/prompt-registry): prompt-as-asset lifecycle.
+- [VCR for LLM tests](https://anaynayak.medium.com/eliminating-flaky-tests-using-vcr-tests-for-llms-a3feabf90bc5): record/replay cassettes.
+
+## Story memory / continuity
+- [Episodic Memory (arXiv 2502.06975)](https://arxiv.org/pdf/2502.06975): the missing piece for long-horizon agents.
+- [SCORE (arXiv 2503.23512)](https://arxiv.org/html/2503.23512v1): symbolic state registry, absorbing states, hybrid retrieval.
+- [FictionRAG (Algorithms 19:383)](https://doi.org/10.3390/a19050383): three-lane memory (events/persona/worldview).
+- [Lost in Stories (arXiv 2603.05890)](https://arxiv.org/html/2603.05890v1): consistency-bug taxonomy.
+- [mem0 docs](https://docs.mem0.ai/core-concepts/memory-types) + [repo](https://github.com/mem0ai/mem0): extract/consolidate/retrieve; library vs self-host.
+
+## Architecture, packaging, adapters
+- [src vs flat layout (PyPA)](https://packaging.python.org/en/latest/discussions/src-layout-vs-flat-layout/).
+- [Cosmic Python — DI/bootstrap](https://www.cosmicpython.com/book/chapter_13_dependency_injection.html) + [project structure](https://www.cosmicpython.com/book/appendix_project_structure.html).
+- [Hexagonal in Python](https://douwevandermeij.medium.com/hexagonal-architecture-in-python-7468c2606b63) + [FastAPI hexagonal](https://blog.szymonmiks.pl/p/hexagonal-architecture-in-python/).
+- [FastAPI bigger apps](https://fastapi.tiangolo.com/tutorial/bigger-applications/) + [error handling](https://fastapi.tiangolo.com/tutorial/handling-errors/).
+- [Typer](https://typer.tiangolo.com/): type-hint CLI. [importlib.resources](https://docs.python.org/3/library/importlib.resources.html): packaged assets.
+- [cookiecutter-data-science](https://cookiecutter-data-science.drivendata.org/): `data/{raw,interim,processed,external}`.
+
+## Frontend (future Next.js/TS app)
+- [next-shadcn-dashboard-starter](https://github.com/Kiranism/next-shadcn-dashboard-starter): reference repo (feature modules, 3-file API layer).
+- [Next.js Server/Client Components](https://nextjs.org/docs/app/getting-started/server-and-client-components) + [data patterns](https://nextjs.org/docs/app/building-your-application/data-fetching/patterns) + [Server Actions](https://nextjs.org/docs/app/building-your-application/data-fetching/server-actions-and-mutations).
+- [React Compiler v1.0](https://react.dev/blog/2025/10/07/react-compiler-1) + [Rules of Hooks](https://react.dev/reference/rules/components-and-hooks-must-be-pure) + [TS in React](https://react.dev/learn/typescript).
+- [shadcn/ui](https://ui.shadcn.com/docs) + [components.json](https://ui.shadcn.com/docs/components-json).
+- [Discriminated unions](https://www.totaltypescript.com/discriminated-unions-are-a-devs-best-friend).
+- [WCAG 2.2](https://www.w3.org/TR/WCAG22/) + [MDN Accessibility](https://developer.mozilla.org/en-US/docs/Web/Accessibility).
