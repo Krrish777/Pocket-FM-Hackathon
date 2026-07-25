@@ -1,25 +1,22 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  characters,
   defectDemo,
-  moments,
-  regenerateALTA,
-  regenerateALTC,
-  rippleALTA,
-  rippleALTC,
-  storyDetail,
-  stories,
+  run,
   t,
   ui,
-  type RippleResult,
+  type CharacterId,
 } from "@/lib/mockData";
 
 /**
  * These assert invariants of the seed dataset, never exact generated prose.
  * The point is to catch a dataset edit that would silently break the demo —
- * a fact landing in two states, a moment pointing at a character who isn't in
- * the episode, a counter no longer matching what the verifier claims.
+ * a turn missing a character's view, a fact landing in two states, a counter
+ * no longer matching what the verifier claims.
  */
+
+const ALL_CHARACTER_IDS: CharacterId[] = ["CH-01", "CH-02", "CH-03", "CH-04", "CH-05"];
 
 describe("t()", () => {
   it("resolves each locale", () => {
@@ -35,91 +32,92 @@ describe("t()", () => {
   });
 });
 
-describe("story structure", () => {
-  it("exposes the playable story first on the shelf", () => {
-    expect(stories[0].id).toBe("ST-01");
-    expect(storyDetail.id).toBe("ST-01");
+describe("cast", () => {
+  it("is exactly the fixed 5, in order (SD-6, M8 — no protagonist special-casing)", () => {
+    expect(characters.map((c) => c.id)).toEqual(ALL_CHARACTER_IDS);
   });
 
-  it("agrees with the shelf summary on episode count", () => {
-    const summary = stories.find((s) => s.id === storyDetail.id);
-    expect(summary?.episodeCount).toBe(storyDetail.episodes.length);
+  it("gives every character both locales for every field", () => {
+    for (const character of characters) {
+      expect(character.name.hi, character.id).toBeTruthy();
+      expect(character.name.en, character.id).toBeTruthy();
+      expect(character.role.en).toBeTruthy();
+      expect(character.blurb.en).toBeTruthy();
+    }
+  });
+});
+
+describe("run", () => {
+  it("is Dexter's playthrough, at least 5 turns deep (§4.1/§8/SD-12)", () => {
+    expect(run.protagonistId).toBe("CH-01");
+    expect(run.turns.length).toBeGreaterThanOrEqual(5);
   });
 
-  it("only references characters that exist in the cast", () => {
-    const cast = new Set(storyDetail.characters.map((c) => c.id));
-    for (const episode of storyDetail.episodes) {
-      for (const characterId of episode.characters) {
-        expect(cast, `${episode.id} → ${characterId}`).toContain(characterId);
+  it("numbers turns sequentially starting at 1", () => {
+    run.turns.forEach((turn, i) => expect(turn.turnIndex).toBe(i + 1));
+  });
+
+  it("gives every turn a characterView for all 5 cast members — M8's testable invariant", () => {
+    for (const turn of run.turns) {
+      expect(Object.keys(turn.characterViews).sort()).toEqual([...ALL_CHARACTER_IDS].sort());
+      for (const characterId of ALL_CHARACTER_IDS) {
+        const view = turn.characterViews[characterId];
+        expect(view.sceneText.en, `turn ${turn.turnIndex} · ${characterId}`).toBeTruthy();
+        expect(view.beliefSummary.en, `turn ${turn.turnIndex} · ${characterId}`).toBeTruthy();
       }
     }
   });
-});
 
-describe("moments", () => {
-  it("anchors every moment to a real episode containing that character", () => {
-    for (const moment of moments) {
-      const episode = storyDetail.episodes.find(
-        (e) => e.id === moment.episodeId,
+  it("offers 2-4 bounded choices per turn — never freeform (SD-3)", () => {
+    for (const turn of run.turns) {
+      expect(turn.choices.length).toBeGreaterThanOrEqual(2);
+      expect(turn.choices.length).toBeLessThanOrEqual(4);
+    }
+  });
+
+  it("sources every choice from fan-fiction (M4/SD-9)", () => {
+    for (const turn of run.turns) {
+      for (const choice of turn.choices) {
+        expect(choice.source.workTitle, choice.choiceId).toBeTruthy();
+        expect(choice.source.author, choice.choiceId).toBeTruthy();
+      }
+    }
+  });
+
+  it("commits to a choice that is actually one of the turn's own options", () => {
+    for (const turn of run.turns) {
+      const ids = turn.choices.map((c) => c.choiceId);
+      expect(ids, `turn ${turn.turnIndex}`).toContain(turn.chosenChoiceId);
+    }
+  });
+
+  it("never places a fact in two delta buckets at once, per turn", () => {
+    for (const turn of run.turns) {
+      const ids = [...turn.delta.invalidated, ...turn.delta.held, ...turn.delta.newNeeded].map(
+        (f) => f.factId,
       );
-      expect(episode, moment.momentId).toBeDefined();
-      expect(episode!.characters).toContain(moment.characterId);
+      expect(new Set(ids).size, `turn ${turn.turnIndex}`).toBe(ids.length);
     }
   });
 
-  it("offers 2-3 bounded alternatives — never freeform", () => {
-    for (const moment of moments) {
-      expect(moment.alternatives.length).toBeGreaterThanOrEqual(2);
-      expect(moment.alternatives.length).toBeLessThanOrEqual(3);
+  it("verifies against exactly the number of facts that still hold, per turn", () => {
+    for (const turn of run.turns) {
+      if (turn.verifier.status === "ok") {
+        expect(turn.verifier.verifiedAgainst, `turn ${turn.turnIndex}`).toBe(turn.delta.held.length);
+      }
     }
   });
 
-  it("keeps the rehearsed demo path intact (E03 · CH-02 · ALT-A)", () => {
-    const rehearsed = moments.find((m) => m.momentId === "M-0301");
-    expect(rehearsed?.episodeId).toBe("E03");
-    expect(rehearsed?.characterId).toBe("CH-02");
-    expect(rehearsed?.alternatives.map((a) => a.altId)).toContain("ALT-A");
-  });
-});
-
-describe.each([
-  ["ALT-A", rippleALTA],
-  ["ALT-C", rippleALTC],
-])("ripple %s", (_label, ripple: RippleResult) => {
-  it("never places a fact in two states at once", () => {
-    const ids = [
-      ...ripple.invalidated,
-      ...ripple.held,
-      ...ripple.newNeeded,
-    ].map((f) => f.factId);
-    expect(new Set(ids).size).toBe(ids.length);
-  });
-
-  it("invalidates something and keeps something", () => {
-    expect(ripple.invalidated.length).toBeGreaterThan(0);
-    expect(ripple.held.length).toBeGreaterThan(0);
-  });
-});
-
-describe("regeneration", () => {
-  it("verifies against exactly the number of facts that still hold", () => {
-    // The badge claims a number; it must be the number the ripple produced,
-    // or the consistency claim is decoration rather than evidence.
-    const ok = regenerateALTA.verifier;
-    expect(ok.status).toBe("ok");
-    if (ok.status === "ok") {
-      expect(ok.verifiedAgainst).toBe(rippleALTA.held.length);
-    }
-
-    const okC = regenerateALTC.verifier;
-    if (okC.status === "ok") {
-      expect(okC.verifiedAgainst).toBe(rippleALTC.held.length);
+  it("keeps the rehearsed demo path intact (always the -A choice)", () => {
+    for (const turn of run.turns) {
+      expect(turn.chosenChoiceId).toBe(`T${turn.turnIndex}-A`);
     }
   });
 
-  it("returns prose in both locales", () => {
-    expect(regenerateALTA.sceneText.hi.length).toBeGreaterThan(50);
-    expect(regenerateALTA.sceneText.en.length).toBeGreaterThan(50);
+  it("gives the replay character (Debra) something she doesn't yet know by the final turn", () => {
+    const finalTurn = run.turns.at(-1)!;
+    const debra = finalTurn.characterViews["CH-02"];
+    expect(debra.notYetKnown?.length ?? 0).toBeGreaterThan(0);
   });
 });
 
@@ -130,7 +128,7 @@ describe("planted defect", () => {
       const { citation } = defectDemo.verifier;
       expect(citation.draftClaim.en).toBeTruthy();
       expect(citation.canonFact.en).toBeTruthy();
-      expect(citation.episodeRef).toMatch(/E\d{2}/);
+      expect(citation.sourceRef).toMatch(/Turn \d/);
     }
   });
 });

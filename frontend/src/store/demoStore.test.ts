@@ -8,74 +8,62 @@ beforeEach(() => {
   useDemoStore.setState(initial, true);
 });
 
-describe("demoStore", () => {
-  it("starts on the shelf in Hindi", () => {
+describe("demoStore (testing branch — one-beat flow)", () => {
+  it("starts on the shelf in English", () => {
     const state = useDemoStore.getState();
     expect(state.screen).toBe("shelf");
-    expect(state.locale).toBe("hi");
+    expect(state.locale).toBe("en");
     expect(state.presenterMode).toBe(false);
   });
 
-  it("walks the rehearsed path forward", () => {
+  it("walks the full flow: shelf -> characterSelect -> plotInput -> ripple -> output", () => {
     const s = () => useDemoStore.getState();
 
     s().selectStory("ST-01");
-    expect(s().screen).toBe("timeline");
+    expect(s().screen).toBe("characterSelect");
+    expect(s().selectedStoryId).toBe("ST-01");
 
-    s().selectCharacter("CH-02");
-    s().openMoment("E03", "M-0301");
-    expect(s().screen).toBe("divergence");
-    expect(s().momentId).toBe("M-0301");
+    s().selectCharacter("CH-01");
+    expect(s().screen).toBe("plotInput");
+    expect(s().protagonistId).toBe("CH-01");
 
-    s().selectAlternative("ALT-A");
-    s().commitFlip();
+    s().setFreeformPrompt("What if he got caught?");
+    s().submitPlot();
     expect(s().screen).toBe("ripple");
+    expect(s().history).toHaveLength(1);
 
-    s().setRipple("RP-0301-A");
     s().markCascadeComplete();
-    s().showOutput();
+    s().proceedToOutput();
     expect(s().screen).toBe("output");
-    expect(s().rippleId).toBe("RP-0301-A");
   });
 
-  it("clears the episode when the character changes", () => {
+  it("walks back through the flow, and treats the defect proof as a detour off output", () => {
     const s = () => useDemoStore.getState();
-    s().selectCharacter("CH-02");
-    s().openMoment("E03", "M-0301");
-    s().selectCharacter("CH-03");
-
-    // An episode only means something alongside the character whose moment it
-    // holds — keeping E03 selected here would let a stale pair through.
-    expect(s().episodeId).toBeNull();
-    expect(s().momentId).toBeNull();
-  });
-
-  it("discards a stale ripple when a new divergence is committed", () => {
-    const s = () => useDemoStore.getState();
-    s().setRipple("RP-0301-A");
-    s().markCascadeComplete();
-    s().commitFlip();
-
-    expect(s().rippleId).toBeNull();
-    expect(s().cascadeComplete).toBe(false);
-  });
-
-  it("walks back through the flow, and treats the defect proof as a detour", () => {
-    const s = () => useDemoStore.getState();
-    s().showOutput();
     s().showDefect();
     expect(s().screen).toBe("defect");
-
     s().back();
     expect(s().screen).toBe("output");
-    s().back();
-    expect(s().screen).toBe("ripple");
   });
 
   it("cannot navigate back past the shelf", () => {
     const s = () => useDemoStore.getState();
     s().back();
     expect(s().screen).toBe("shelf");
+  });
+
+  it("runs the replay independently of the live playthrough", () => {
+    const s = () => useDemoStore.getState();
+    s().startReplay("CH-02");
+    expect(s().screen).toBe("replay");
+    expect(s().replayCharacterId).toBe("CH-02");
+    expect(s().replayTurnIndex).toBe(1);
+
+    s().advanceReplay(5);
+    expect(s().replayTurnIndex).toBe(2);
+
+    s().exitReplay();
+    expect(s().screen).toBe("output");
+    expect(s().replayCharacterId).toBeNull();
   });
 
   it("keeps stage settings across a reset", () => {
@@ -85,18 +73,17 @@ describe("demoStore", () => {
     s().selectStory("ST-01");
     s().reset();
 
-    // Demo progress resets; stage settings are not progress.
     expect(s().screen).toBe("shelf");
-    expect(s().storyId).toBeNull();
-    expect(s().locale).toBe("en");
+    expect(s().selectedStoryId).toBeNull();
+    expect(s().locale).toBe("hi");
     expect(s().presenterMode).toBe(true);
   });
 
   it("toggles locale both ways", () => {
     const s = () => useDemoStore.getState();
     s().toggleLocale();
-    expect(s().locale).toBe("en");
-    s().toggleLocale();
     expect(s().locale).toBe("hi");
+    s().toggleLocale();
+    expect(s().locale).toBe("en");
   });
 });

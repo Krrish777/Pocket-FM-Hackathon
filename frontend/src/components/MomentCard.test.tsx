@@ -3,74 +3,53 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { MomentCard } from "@/components/MomentCard";
-import { moments } from "@/lib/mockData";
+import { run } from "@/lib/mockData";
 
-const rehearsedMoment = moments.find((m) => m.momentId === "M-0301")!;
+const turn1Choices = run.turns[0].choices;
 
 describe("MomentCard", () => {
-  it("shows the canon line and every bounded alternative", () => {
+  it("shows every bounded choice with its fan-fiction attribution", () => {
     render(
-      <MomentCard
-        moment={rehearsedMoment}
-        episodeId="E03"
-        locale="en"
-        selectedAltId={null}
-        onSelect={vi.fn()}
-      />,
+      <MomentCard choices={turn1Choices} locale="en" selectedChoiceId={null} onSelect={vi.fn()} />,
     );
 
-    expect(screen.getByText(/Aarav reaches the roof in time/)).toBeVisible();
-    for (const alternative of rehearsedMoment.alternatives) {
-      expect(screen.getByText(alternative.label.en)).toBeVisible();
+    for (const choice of turn1Choices) {
+      expect(screen.getByText(choice.label.en)).toBeVisible();
+      expect(screen.getByText(new RegExp(choice.source.author))).toBeVisible();
     }
   });
 
-  it("reports the chosen alternative", async () => {
+  it("reports the chosen choice", async () => {
     const onSelect = vi.fn();
     const user = userEvent.setup();
 
     render(
-      <MomentCard
-        moment={rehearsedMoment}
-        episodeId="E03"
-        locale="en"
-        selectedAltId={null}
-        onSelect={onSelect}
-      />,
+      <MomentCard choices={turn1Choices} locale="en" selectedChoiceId={null} onSelect={onSelect} />,
     );
 
-    await user.click(screen.getByText(rehearsedMoment.alternatives[0].label.en));
-    expect(onSelect).toHaveBeenCalledWith("ALT-A");
+    await user.click(screen.getByText(turn1Choices[0].label.en));
+    expect(onSelect).toHaveBeenCalledWith(turn1Choices[0].choiceId);
   });
 
-  it("exposes the alternatives as real radios", () => {
+  it("exposes the choices as real radios", () => {
     render(
       <MomentCard
-        moment={rehearsedMoment}
-        episodeId="E03"
+        choices={turn1Choices}
         locale="en"
-        selectedAltId="ALT-A"
+        selectedChoiceId={turn1Choices[0].choiceId}
         onSelect={vi.fn()}
       />,
     );
 
-    // Radio semantics give arrow-key navigation and screen-reader support for
-    // free; a div-with-onClick would give neither.
     const radios = screen.getAllByRole("radio");
-    expect(radios).toHaveLength(rehearsedMoment.alternatives.length);
+    expect(radios).toHaveLength(turn1Choices.length);
     expect(radios[0]).toHaveAttribute("aria-checked", "true");
   });
 
   it("renders Hindi when asked", () => {
     render(
-      <MomentCard
-        moment={rehearsedMoment}
-        episodeId="E03"
-        locale="hi"
-        selectedAltId={null}
-        onSelect={vi.fn()}
-      />,
+      <MomentCard choices={turn1Choices} locale="hi" selectedChoiceId={null} onSelect={vi.fn()} />,
     );
-    expect(screen.getByText(rehearsedMoment.originalLine.hi)).toBeVisible();
+    expect(screen.getByText(turn1Choices[0].label.hi)).toBeVisible();
   });
 });

@@ -71,7 +71,7 @@ export function VerifierBadge({
         <dd className="text-ink-bright">{t(citation.canonFact, locale)}</dd>
 
         <dt className="text-ink-faint">REF</dt>
-        <dd className="text-ink-bright">{citation.episodeRef}</dd>
+        <dd className="text-ink-bright">{citation.sourceRef}</dd>
       </dl>
     </motion.div>
   );

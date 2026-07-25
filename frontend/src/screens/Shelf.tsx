@@ -1,24 +1,90 @@
 "use client";
 
-import { Hourglass, Sparkles } from "lucide-react";
+import { Sparkles, Volume2 } from "lucide-react";
+import { useEffect, useState } from "react";
 
-import { StoryCard } from "@/components/StoryCard";
+import { playSelect } from "@/lib/audio";
+import { t, ui, type Story } from "@/lib/mockData";
+import { isSpeechSupported, speak, stopSpeaking } from "@/lib/voice";
+import { cn } from "@/lib/utils";
 import { useStories } from "@/lib/api";
-import { t, ui } from "@/lib/mockData";
 import { useDemoStore } from "@/store/demoStore";
 
-/** The story that is authored end-to-end. The rest are shelf realism only. */
-const PLAYABLE_STORY_ID = "ST-01";
-
 /**
- * Screen 1 — Story Shelf, redesigned per the reference mock: a centered
- * hero (eyebrow, gradient headline, subhead), three cover cards, and a
- * closing tagline bar. Still establishes tone fast — headline, covers,
- * one line of framing — no nav, no filters, no empty states.
+ * Shelf — 3 story cards. Every card's voice teaser is REAL (Web Speech API,
+ * lib/voice.ts) — tapping any of them is a genuine working interaction, not a
+ * dead click. Only the fully-authored story (`interactive: true`) proceeds
+ * into the playthrough; the others are voice-only, same "present but inert"
+ * precedent as before.
  */
+function StoryCard({ story, locale }: { story: Story; locale: "hi" | "en" }) {
+  const selectStory = useDemoStore((s) => s.selectStory);
+  const [playing, setPlaying] = useState(false);
+
+  useEffect(() => stopSpeaking, []); // stop any narration if this card unmounts mid-play
+
+  const toggleVoice = () => {
+    if (playing) {
+      stopSpeaking();
+      setPlaying(false);
+      return;
+    }
+    playSelect();
+    speak(story.voiceSummary, setPlaying);
+  };
+
+  return (
+    <article
+      className={cn(
+        "border-ink-line bg-shell-raised/30 flex flex-col gap-4 rounded-2xl border p-6 transition-colors duration-150 ease-out",
+        playing && "border-accent/60",
+      )}
+    >
+      <div>
+        <h2 className="type-title text-ink-bright">{t(story.title, locale)}</h2>
+        <p className="type-body text-ink-muted mt-2">{t(story.tagline, locale)}</p>
+      </div>
+
+      <div className="mt-auto flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={toggleVoice}
+          disabled={!isSpeechSupported()}
+          className={cn(
+            "type-label flex cursor-pointer items-center gap-2 rounded-full border px-4 py-2.5 transition-colors duration-150 ease-out",
+            playing
+              ? "border-accent bg-accent-wash text-accent"
+              : "border-ink-line bg-shell-base text-ink-bright hover:border-ink-muted",
+            "disabled:cursor-default disabled:opacity-40",
+          )}
+        >
+          <Volume2 className="size-3.5" strokeWidth={1.75} />
+          {playing ? t(ui.nowPlayingLabel, locale) : t(ui.holdToHearLabel, locale)}
+        </button>
+
+        {story.interactive ? (
+          <button
+            type="button"
+            onClick={() => {
+              stopSpeaking();
+              playSelect();
+              selectStory(story.id);
+            }}
+            className="type-label flex cursor-pointer items-center gap-2 rounded-full px-4 py-2.5 text-shell-void"
+            style={{ background: "linear-gradient(135deg, #f2994a, #e0608f 60%, #a86ee0)" }}
+          >
+            {t(ui.enterThisStoryButton, locale)}
+          </button>
+        ) : (
+          <span className="type-index text-ink-faint normal-case">{t(ui.comingSoonLabel, locale)}</span>
+        )}
+      </div>
+    </article>
+  );
+}
+
 export function Shelf() {
   const locale = useDemoStore((s) => s.locale);
-  const selectStory = useDemoStore((s) => s.selectStory);
   const { data: stories, isPending } = useStories();
 
   return (
@@ -28,7 +94,7 @@ export function Shelf() {
           <span className="bg-ink-line h-px w-10" aria-hidden="true" />
           <span className="type-index flex items-center gap-2">
             <Sparkles className="size-3.5 text-violet-300" strokeWidth={1.75} />
-            {t(ui.welcomeEyebrow, locale)}
+            {t(ui.appSubtitle, locale)}
             <Sparkles className="size-3.5 text-violet-300" strokeWidth={1.75} />
           </span>
           <span className="bg-ink-line h-px w-10" aria-hidden="true" />
@@ -47,38 +113,12 @@ export function Shelf() {
         <p className="type-body text-ink-muted">{t(ui.shelfSub, locale)}</p>
       </header>
 
-      <div className="grid w-full max-w-[1120px] grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid w-full max-w-[1120px] grid-cols-1 gap-6 lg:grid-cols-3">
         {isPending
-          ? /* Skeletons are hairline outlines, not shimmering blocks — a
-               shimmer would be a third assertive motion. */
-            Array.from({ length: 3 }, (_, i) => (
-              <div
-                key={i}
-                className="border-ink-line bg-shell-base aspect-[3/4] rounded-2xl border"
-              />
+          ? Array.from({ length: 3 }, (_, i) => (
+              <div key={i} className="border-ink-line bg-shell-base aspect-[4/3] rounded-2xl border" />
             ))
-          : stories?.map((story, i) => (
-              <StoryCard
-                key={story.id}
-                story={story}
-                index={i}
-                locale={locale}
-                interactive={story.id === PLAYABLE_STORY_ID}
-                onSelect={selectStory}
-              />
-            ))}
-      </div>
-
-      <div className="border-ink-line bg-shell-raised/40 flex w-full max-w-[1120px] items-center justify-center gap-3 rounded-full border px-6 py-4">
-        <Sparkles className="text-ink-faint size-4 shrink-0" strokeWidth={1.5} />
-        <Hourglass className="text-ink-muted size-4 shrink-0" strokeWidth={1.75} />
-        <p className="type-body text-center">
-          <span className="text-ink-bright font-medium">
-            {t(ui.infinityBannerLead, locale)}
-          </span>{" "}
-          <span className="text-ink-muted">{t(ui.infinityBannerSub, locale)}</span>
-        </p>
-        <Sparkles className="text-ink-faint size-4 shrink-0" strokeWidth={1.5} />
+          : stories?.map((story) => <StoryCard key={story.id} story={story} locale={locale} />)}
       </div>
     </section>
   );

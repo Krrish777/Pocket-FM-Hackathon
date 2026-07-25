@@ -5,12 +5,12 @@ import { AnimatePresence, motion } from "framer-motion";
 import { AppHeader } from "@/components/AppHeader";
 import { CanonButton } from "@/components/CanonButton";
 import { Sidebar, SIDEBAR_WIDTH } from "@/components/Sidebar";
-import { t, ui } from "@/lib/mockData";
 import { SCREEN_TRANSITION } from "@/lib/tokens";
 import { cn } from "@/lib/utils";
 import { DefectProof } from "@/screens/DefectProof";
-import { Divergence } from "@/screens/Divergence";
 import { Output } from "@/screens/Output";
+import { PlotInput } from "@/screens/PlotInput";
+import { Replay } from "@/screens/Replay";
 import { Ripple } from "@/screens/Ripple";
 import { Shelf } from "@/screens/Shelf";
 import { Timeline } from "@/screens/Timeline";
@@ -21,14 +21,15 @@ import { useDemoStore, type Screen } from "@/store/demoStore";
  *
  * Every screen is a view switched by store state, not a Next.js route, so
  * Framer Motion transitions carry across screen changes instead of being torn
- * down by a navigation event. Do NOT split these into /shelf, /timeline, …
+ * down by a navigation event. Do NOT split these into /shelf, /characterSelect, …
  */
 const SCREENS: Record<Screen, React.ComponentType> = {
   shelf: Shelf,
-  timeline: Timeline,
-  divergence: Divergence,
+  characterSelect: Timeline,
+  plotInput: PlotInput,
   ripple: Ripple,
   output: Output,
+  replay: Replay,
   defect: DefectProof,
 };
 
@@ -39,6 +40,9 @@ export default function Page() {
   const back = useDemoStore((s) => s.back);
 
   const CurrentScreen = SCREENS[screen];
+
+  // No back on the root screen, no back on replay (it has its own exit control).
+  const showBack = screen !== "shelf" && screen !== "replay";
 
   return (
     <div className={cn("min-h-screen", presenterMode && "presenting")}>
@@ -55,9 +59,9 @@ export default function Page() {
       >
         {/* One direction, but never a dead end — there is always a way back. */}
         <div className="mb-8 flex min-h-[40px] items-center">
-          {screen !== "shelf" ? (
+          {showBack ? (
             <CanonButton variant="ghost" arrow={false} onClick={back}>
-              {`← ${screen === "timeline" ? t(ui.backToStories, locale) : "BACK"}`}
+              ← BACK
             </CanonButton>
           ) : null}
         </div>

@@ -72,7 +72,7 @@ export function DefectProof() {
                   {t(ui.verifierFlagged, locale)}
                 </DialogTitle>
                 <DialogDescription className="type-cite text-ink-muted">
-                  {flagged.citation.episodeRef}
+                  {flagged.citation.sourceRef}
                 </DialogDescription>
               </DialogHeader>
 

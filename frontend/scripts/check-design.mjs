@@ -48,6 +48,9 @@ const ROUNDED_ALLOWLIST = new Set([
   "screens/Timeline.tsx",
   "screens/Ripple.tsx",
   "screens/DefectProof.tsx",
+  "screens/Replay.tsx",
+  "screens/PlotInput.tsx",
+  "screens/Output.tsx",
 ]);
 
 const RULES = [

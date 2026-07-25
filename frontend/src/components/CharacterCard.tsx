@@ -4,7 +4,7 @@ import { ChevronRight } from "lucide-react";
 
 import { ProceduralPortrait } from "@/components/ProceduralPortrait";
 import { playSelect } from "@/lib/audio";
-import { t, ui, type Character, type Locale } from "@/lib/mockData";
+import { t, ui, type Character, type CharacterId, type Locale } from "@/lib/mockData";
 import { cn } from "@/lib/utils";
 
 /** Alternates orange/violet across the cast — same two accents as the rest of the redesign. */
@@ -14,30 +14,33 @@ const TINTS = [
 ] as const;
 
 /**
- * Character card — Timeline redesign (see reference mock).
+ * Character card — CharacterSelect (formerly Timeline redesign).
  *
- * "View Journey" reuses the existing `selectCharacter` interaction (the
- * portrait grid used to do this on click): it feeds the TimelineTrack above,
- * which lights up exactly the episodes that character has an authored
- * moment in.
+ * Only the fully-authored protagonist is `interactive`; the rest render at
+ * full visual weight but the CTA is disabled — same "present but inert"
+ * pattern the old Shelf used for its two non-playable story cards.
  */
 export function CharacterCard({
   character,
   locale,
   index,
   selected,
+  interactive,
   onSelect,
 }: {
   character: Character;
   locale: Locale;
   index: number;
   selected: boolean;
-  onSelect: (characterId: string) => void;
+  /** Only the fully-authored protagonist is clickable; the rest are cast realism. */
+  interactive: boolean;
+  onSelect: (characterId: CharacterId) => void;
 }) {
   const name = t(character.name, locale);
   const tint = TINTS[index % TINTS.length];
 
   const handleSelect = () => {
+    if (!interactive) return;
     playSelect();
     onSelect(character.id);
   };
@@ -77,17 +80,23 @@ export function CharacterCard({
         {t(character.blurb, locale)}
       </p>
 
-      <button
-        type="button"
-        aria-pressed={selected}
-        onClick={handleSelect}
-        className="border-ink-line bg-shell-base group/cta text-ink-bright mt-auto flex w-fit cursor-pointer items-center gap-1.5 rounded-full border px-4 py-2 transition-colors duration-150 ease-out hover:border-ink-muted"
-      >
-        <span className="type-index normal-case">{t(ui.viewJourneyButton, locale)}</span>
-        <ChevronRight
-          className={cn("size-3.5 transition-transform duration-150 ease-out group-hover/cta:translate-x-0.5", tint.role)}
-        />
-      </button>
+      {interactive ? (
+        <button
+          type="button"
+          aria-pressed={selected}
+          onClick={handleSelect}
+          className="border-ink-line bg-shell-base group/cta text-ink-bright mt-auto flex w-fit cursor-pointer items-center gap-1.5 rounded-full border px-4 py-2 transition-colors duration-150 ease-out hover:border-ink-muted"
+        >
+          <span className="type-index normal-case">{t(ui.viewJourneyButton, locale)}</span>
+          <ChevronRight
+            className={cn("size-3.5 transition-transform duration-150 ease-out group-hover/cta:translate-x-0.5", tint.role)}
+          />
+        </button>
+      ) : (
+        <p className="type-index text-ink-faint mt-auto normal-case">
+          {t(ui.inertCharacterNote, locale)}
+        </p>
+      )}
     </article>
   );
 }

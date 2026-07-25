@@ -46,9 +46,9 @@ const notoDevanagari = Noto_Sans_Devanagari({
 });
 
 export const metadata: Metadata = {
-  title: "CANON · Story Time Machine",
+  title: "CANON · a playable branch",
   description:
-    "Go back to any moment in a story, change one decision — watch what breaks, what holds, and read the story that follows.",
+    "Pick a character, play forward through choices sourced from fan-fiction — every character remembers only what they actually learned.",
 };
 
 export default function RootLayout({
@@ -56,7 +56,7 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html
-      lang="hi"
+      lang="en"
       className={`${fraunces.variable} ${geist.variable} ${jetbrainsMono.variable} ${tiroDevanagari.variable} ${notoDevanagari.variable} h-full`}
     >
       <body className="min-h-full">
