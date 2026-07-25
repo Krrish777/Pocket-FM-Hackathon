@@ -12,9 +12,13 @@ from story_engine.adapters.outbound.persistence.db import (
 from story_engine.adapters.outbound.persistence.episode_log_repository import (
     SqliteEpisodeLogRepository,
 )
+from story_engine.adapters.outbound.persistence.playthrough_repository import (
+    SqlitePlaythroughRepository,
+)
 
 __all__ = [
     "SqliteEpisodeLogRepository",
+    "SqlitePlaythroughRepository",
     "create_db_engine",
     "init_db",
     "session_scope",

@@ -26,6 +26,7 @@ from story_engine.adapters.outbound.ingestion.pdf_document_source import (
 from story_engine.adapters.outbound.llm_factory import build_llm
 from story_engine.adapters.outbound.persistence import (
     SqliteEpisodeLogRepository,
+    SqlitePlaythroughRepository,
     create_db_engine,
     init_db,
 )
@@ -35,6 +36,7 @@ from story_engine.adapters.outbound.scripted_oracle import ScriptedBranchOracle
 from story_engine.config.settings import Settings, get_settings
 from story_engine.observability.logging import configure_logging
 from story_engine.ports.llm import LLMPort
+from story_engine.ports.playthrough_repository import PlaythroughRepositoryPort
 from story_engine.resources.dexter_demo import CAST, FORK_ID
 from story_engine.services.canon_ingest import CanonIngestService
 from story_engine.services.demo_seed import (
@@ -64,6 +66,7 @@ class Container:
     playthrough: PlaythroughService
     intent_router: IntentRouter
     llm: LLMPort
+    playthrough_repository: PlaythroughRepositoryPort
 
 
 def build_container(settings: Settings | None = None) -> Container:
@@ -94,6 +97,7 @@ def build_container(settings: Settings | None = None) -> Container:
         model=settings.default_model,
     )
     intent_router = IntentRouter(llm=llm, prompts=prompts, model=settings.intent_model)
+    playthrough_repository = SqlitePlaythroughRepository(engine)
 
     generator = EpisodeGenerator(
         llm=llm,
@@ -110,6 +114,7 @@ def build_container(settings: Settings | None = None) -> Container:
         playthrough=playthrough,
         intent_router=intent_router,
         llm=llm,
+        playthrough_repository=playthrough_repository,
     )
 
 

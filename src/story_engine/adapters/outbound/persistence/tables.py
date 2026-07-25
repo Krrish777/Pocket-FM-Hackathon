@@ -5,6 +5,8 @@ never imports SQLModel/SQLAlchemy (hexagon red line #7). One table class per agg
 hold the domain's dict/collection fields; the repo converts `tuple ⇄ list` at the boundary.
 """
 
+from datetime import datetime
+
 from sqlalchemy import JSON, Column
 from sqlmodel import Field, SQLModel
 
@@ -83,6 +85,27 @@ class FactRow(SQLModel, table=True):
     # / `datetime.fromisoformat()` preserve the offset exactly.
     recorded_at: str
     superseded_at: str | None = Field(default=None)
+
+
+class PlaythroughRunRow(SQLModel, table=True):
+    """Storage row for one `domain.models.play.Playthrough` run envelope.
+
+    Deliberately NOT a decomposition of `Playthrough` into columns: the whole model is stored as
+    one JSON blob in `payload`, because the envelope has no query surface of its own (it is loaded
+    and saved whole, by `run_id`, never filtered by turn contents). `fork_id`/`protagonist` are
+    lifted out only because they are useful to see/filter on without deserializing `payload` — they
+    are a denormalized index, not a second copy of truth (the truth is the JSON, and the JSON's
+    facts are themselves only a *view* over the canon store, never a duplicate of it).
+    """
+
+    __tablename__ = "playthrough_run"
+
+    run_id: str = Field(primary_key=True)
+    fork_id: str = Field(index=True)
+    protagonist: str = Field(index=True)
+    created_at: datetime
+    payload: str
+    """The full `Playthrough`, serialized via `.model_dump_json()`."""
 
 
 class VectorRow(SQLModel, table=True):
