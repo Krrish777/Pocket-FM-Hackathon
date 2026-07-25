@@ -36,6 +36,7 @@ from story_engine.domain.models.play import (
     Turn,
 )
 from story_engine.domain.propagation import witnesses_learn
+from story_engine.domain.reactions import CharacterDirective, derive_directives
 from story_engine.ports.branch_oracle import BranchOraclePort
 from story_engine.ports.canon_store import CanonStorePort
 from story_engine.ports.llm import LLMPort
@@ -46,7 +47,7 @@ from story_engine.shared.errors import StoryEngineError
 logger = logging.getLogger(__name__)
 
 RENDER_PROMPT = "render_scene"
-RENDER_PROMPT_VERSION = "v1"
+RENDER_PROMPT_VERSION = "v2"
 """Pinned, never "latest by accident" — a prompt change must be a reviewable diff
 (`.claude/rules/llm-storytelling.md` §2)."""
 
@@ -82,6 +83,7 @@ class PlaythroughService:
         oracle: BranchOraclePort,
         llm: LLMPort,
         prompts: PromptStorePort,
+        cast: dict[str, str] | None = None,
         model: str = "claude-sonnet-5",
     ) -> None:
         self._store = store
@@ -89,6 +91,9 @@ class PlaythroughService:
         self._oracle = oracle
         self._llm = llm
         self._prompts = prompts
+        # Who else exists. Empty is legal and simply means no directives are derived — a
+        # solo run still renders, it just has nobody to be in the dark.
+        self._cast = dict(cast or {})
         self._model = model
 
     # --- public API ---------------------------------------------------------------------
@@ -272,13 +277,19 @@ class PlaythroughService:
             index=index,
             chapter=chapter,
             protagonist=protagonist,
-            scene=self._narrate(packet, offered),
+            scene=self._narrate(packet, offered, fork_id=fork_id),
             choices=offered,
             citations=self._citations(packet),
             withheld_count=packet.withheld_count,
         )
 
-    def _narrate(self, packet: MemoryPacket, choices: tuple[ChoiceOption, ...]) -> str:
+    def _narrate(
+        self,
+        packet: MemoryPacket,
+        choices: tuple[ChoiceOption, ...],
+        *,
+        fork_id: str,
+    ) -> str:
         """The single model call. Its input is the packet — nothing the character cannot know."""
         prompt = self._prompts.render(
             RENDER_PROMPT,
@@ -295,6 +306,14 @@ class PlaythroughService:
                     }
                     for fact in packet.facts
                 ],
+                "others": [
+                    {
+                        "name": directive.name,
+                        "blind_spots": list(directive.blind_spots),
+                        "tension": directive.tension,
+                    }
+                    for directive in self._directives(packet, fork_id=fork_id)
+                ],
                 "choices": [choice.label for choice in choices],
             },
         )
@@ -308,6 +327,27 @@ class PlaythroughService:
             idempotency_key=f"{packet.knower}:{packet.chapter}:{len(packet.facts)}",
         )
         return generation.output
+
+    def _directives(
+        self, packet: MemoryPacket, *, fork_id: str
+    ) -> tuple[CharacterDirective, ...]:
+        """What the rest of the cast is missing, recomputed for this beat.
+
+        Each other character's view comes from the SAME guarded query the actor's did, so the
+        subtraction compares like with like and cannot name anything the actor does not already
+        know. Nothing here is stored — see `domain.reactions` for why that matters to S3.
+        """
+        return derive_directives(
+            actor=packet.knower,
+            actor_facts=packet.facts,
+            others={
+                character_id: (
+                    name,
+                    self._store.visible_to(fork_id, character_id, packet.chapter),
+                )
+                for character_id, name in self._cast.items()
+            },
+        )
 
     @staticmethod
     def _citations(packet: MemoryPacket) -> tuple[Citation, ...]:

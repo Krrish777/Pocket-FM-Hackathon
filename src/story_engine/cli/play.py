@@ -50,6 +50,7 @@ def _build(db: Path, novel: Path, *, seed: bool) -> PlaythroughService:
         # departure from the script is visible rather than plausible.
         llm=ScriptedLLM(DEMO_SCRIPT),
         prompts=FilePromptStore("prompts"),
+        cast=CAST,
     )
 
 

@@ -1,0 +1,67 @@
+{# render_scene/v2 — narrate one beat from ONE character's view, with the rest of the cast reacting.
+
+   v1 is kept intact beside this file (prompts/README.md: never edit a shipped version in place),
+   so anything generated under v1 stays reproducible.
+
+   NEW IN v2: `others` — derived directives for the rest of the cast, per project_context.md 4.4.
+   Without them the other four characters were furniture: state re-evaluated every turn but nothing
+   in the prompt let it show.
+
+   Variables (all required; StrictUndefined makes a missing one fail loud):
+     protagonist : str            — whose eyes this beat is seen through
+     chapter     : int            — position in the telling
+     facts       : list[dict]     — the ONLY canon this scene may use. Each: subject, predicate,
+                                    object, quote. Already filtered by the spoiler guard.
+     others      : list[dict]     — the rest of the cast. Each: name, blind_spots (list[str]),
+                                    tension (int 0-5). COMPUTED AT RENDER TIME, never stored.
+     choices     : list[str]      — the option labels the player is about to be offered
+
+   THE CONTRACT: `facts` is already filtered to what {{ protagonist }} may know, so nothing withheld
+   is in this prompt and nothing withheld can leak. `others` describes what the OTHERS lack relative
+   to {{ protagonist }} — it is derived by subtracting their guarded view from his, so it can only
+   ever name things {{ protagonist }} already knows. It cannot smuggle in a third party's secret.
+#}
+You are narrating one scene of a Dexter novel from the point of view of {{ protagonist }}.
+
+WHAT {{ protagonist | upper }} KNOWS AT THIS POINT (chapter {{ chapter }}):
+{% for fact in facts %}
+- {{ fact.subject }} {{ fact.predicate }} {{ fact.object }}
+  (from the source: "{{ fact.quote | trim | truncate(220) }}")
+{% else %}
+(Nothing yet. {{ protagonist }} is walking into this cold.)
+{% endfor %}
+
+{% if others %}
+WHO ELSE IS IN THIS STORY, AND WHAT THEY ARE MISSING:
+{% for other in others %}
+* {{ other.name }} — tension toward {{ protagonist }}: {{ other.tension }}/5.
+{% if other.blind_spots %}
+  Does NOT know: {{ other.blind_spots | join("; ") }}.
+  Write them as someone acting on an incomplete picture. They must never behave as if they know
+  the items above — no knowing glances, no loaded pauses about them.
+{% else %}
+  Knows everything {{ protagonist }} knows about this moment.
+{% endif %}
+{% endfor %}
+{% endif %}
+
+RULES:
+1. Write ONLY what {{ protagonist }} could perceive, infer, or remember. The first list is
+   exhaustive — if something is not there, {{ protagonist }} does not know it.
+2. Other characters act on THEIR picture, not yours. A blind spot is a behavioural instruction:
+   it should change what they say and do, not be stated outright.
+3. Do not resolve the scene. It ends on the beat before a decision.
+4. Do not mention, hint at, or foreshadow the options listed below. The player chooses; the
+   narration must not lean.
+5. Second person, present tense, 120-180 words. Match the novels' dry first-person interiority.
+6. No headings, no bullet points, no meta-commentary. Prose only.
+
+{% if choices %}
+THE PLAYER IS ABOUT TO CHOOSE BETWEEN (context for pacing only — never name these):
+{% for choice in choices %}
+- {{ choice }}
+{% endfor %}
+End the scene at the moment this decision becomes unavoidable.
+{% else %}
+This is the end of the run. Close the beat with a sense of consequence settling, not a cliffhanger.
+{% endif %}
