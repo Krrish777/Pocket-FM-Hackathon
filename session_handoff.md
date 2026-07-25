@@ -11,6 +11,92 @@
 
 ---
 
+## Session F — 2026-07-26 (INTEGRATION: the engine stops being CLI-only)
+
+**Branch:** `integration-demo-path` (15 commits, **not merged, not pushed to main**).
+**Gate:** `make check` **exit 0, 579 passed** (from 497 — +82 tests, zero regressions).
+**Features:** **41/48**, every flip earned by its own passing verification command.
+
+### The one thing to read next
+**`docs/superpowers/plans/demo-path-integration.md`** — its **12 Global Constraints** are what the
+review subagents enforced all session, and they are still the rules for this codebase. Then
+`.superpowers/sdd/demo-path-integration/progress.md` for every finding and every ruling.
+
+### Run it
+```bash
+# Terminal, no API key, the rehearsed path (unchanged this session):
+uv run story-engine play --auto --turns 5 --replay-as deborah
+
+# Over HTTP, no API key — the real demo:
+LLM_PROVIDER=scripted uv run uvicorn story_engine.api.app:app --port 8899
+#   GET  /api/v1/characters
+#   POST /api/v1/play                    {"character_id":"dexter"}
+#   POST /api/v1/play/{run_id}/act       {"action":"I go finish the priest tonight"}
+#   POST /api/v1/play/{run_id}/replay-as {"character_id":"deborah"}
+
+# Browser: cd frontend && npm run dev  ->  /play
+
+# Serve the FULL novel (612 facts) instead of the demo anchors:
+uv run story-engine ingest --novel data/external/Darkly-Dreaming-Dexter-1.pdf
+DATABASE_URL=sqlite:///data/interim/canon_ingest.db uv run uvicorn story_engine.api.app:app
+
+# Options mined from real fan fiction (default is authored):
+BRANCH_ORACLE=corpus uv run story-engine play --auto --turns 5
+```
+
+### What was built
+A real **OpenAI adapter** behind the existing `LLMPort` (metered, retried, replay-safe) ·
+**natural-language intent routing** onto the constrained option set · the **knowledge base wired into
+the composition root** · **run persistence** · the **turn-loop REST API** · a **corpus-backed branch
+oracle** · a **full-novel ingest CLI** · the **full-scenario e2e** · an **API contract check** · one
+additive **`/play`** route.
+
+### Verified LIVE over HTTP with no API key (not merely tested)
+`GET /characters` → 5 cast · `POST /play` → turn with citations, `withheld=3`, **no consequence in the
+payload** · `POST /act "I go finish the priest tonight"` → interpreted, ch1→ch2, withheld 3→2, four
+reaction directives · `POST /act "I fly to Cuba and start a new life"` → **422**, unified envelope,
+offered labels in `context` · `POST /replay-as deborah` → **withheld 6 and 5 where Dexter saw 2**.
+The real novel ingests to **612 facts / 27 chapters**, canon lane == vector lane, guard gating
+monotonically (ch1 23/612 → ch27 612/612).
+
+### Five defects the green suite could not see — all found by independent review
+1. **A dead `except` clause.** `bootstrap.py` caught `DocumentIngestionError`; `seed_canon` raises
+   `DemoSeedError` — a *sibling*, not a subclass. A drifted anchor crashed `build_container()`, and
+   `story-engine reconcile` (which calls it) was unreachable in exactly the case it repairs.
+2. **A silently-naive timestamp**, written 20 lines below this repo's own comment warning that
+   SQLAlchemy drops `tzinfo`.
+3. **Two incompatible error envelopes for one 422**, on the branch a judge is most likely to trigger.
+4. **Natural-language input wholly non-functional in the keyless demo** — scripted mode 422'd on every
+   typed action, so "runs with no API key" held only for numeric picks.
+5. **The graph lane is structurally empty on the demo fork** (all facts carry `object_literal`) —
+   found by the new e2e, *reported rather than papered over*, logged in `BACKLOG.md` with a fix path.
+
+### Decisions recorded in `DECISIONS.md`
+OpenAI as provider with `scripted` kept as a first-class keyless path · cost metered honestly (an
+unpriced model reports `0.0` and warns rather than inventing a number) · **the input is named
+"natural-language intent", never "free-form"** — it maps onto a constrained action set, and the
+overclaim would migrate from the pitch into the code · **canon-first / vector-second** ingest
+atomicity with `reconcile()` and no compensating delete against an append-only store · the corpus
+oracle ships **default-off**.
+
+### Honest state of M4
+The oracle is **real** — 7 works / 89 chapters / 5 branch points, each with a genuine `wattpad:<id>`.
+The corpus is **thin**: every branch point is `support: 1`, and only **1 of the demo's 4 anchored
+chapters** gets a mined alternate. Everything else stays authored with `source_work_id=None`, so mined
+and authored are distinguishable at a glance. Nothing fabricates provenance.
+
+### Next session — start here
+1. **Merge decision.** The branch is not merged and not pushed to `main`. Review, then decide.
+2. **M8** — traits and goals on the character record. Small, closes a MUST.
+3. **M7** — the §5.5 verifier: *intentional divergence* vs *accidental contradiction*.
+4. **The graph gap** (`BACKLOG.md`) — give demo anchors real `object_id` relations so the demo fork
+   projects edges; `PlaythroughService._fact_for` writes `object_literal` unconditionally too.
+5. **A real embedder** behind `EmbedderPort` — `HashingEmbedder` is near-random on natural language.
+6. **Databricks** vector/memory integration is specced in `BACKLOG.md` — post-demo, and it must keep
+   the guard as a PRE-filter or it is a spoiler side-channel.
+
+---
+
 ## Session E — 2026-07-25 (scope lock → novel ingestion → **a working demo**)
 
 **Branch:** `main`. Both parallel worktrees were merged and removed; the session then locked the demo

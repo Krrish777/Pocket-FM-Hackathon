@@ -281,6 +281,62 @@
       "evidence": "2026-07-25 (s7): runs clean. Seeds 5 canon facts whose quotes are SLICED FROM THE PDF AT SEED TIME rather than pasted into source — a pasted quote can drift from its offsets through one transcription slip, and a drifted citation still looks exactly like a good one. Every anchor carries a must_contain sentinel so re-ingestion that moves offsets fails loudly at seed time instead of quietly citing the wrong paragraph. Observed contrast, which IS the demo: as Dexter, turn 0 narrates the Dark Passenger and Harry's code with 3 facts withheld; as Deborah, the same turn 0 of the same branch reads 'stands at the edge of the moment with nothing to go on' with 10 facts withheld. Cast uses NOVEL names (Deborah, not Debra) per FANFIC-05 and project_context.md 6.4. No API key required: ScriptedLLM replays authored beats and composes a deliberately mechanical fallback otherwise, so the stage demo cannot be broken by a timeout or an unlucky sample."
     },
     {
+      "id": "LLM-01",
+      "description": "Real LLM adapter — OpenAI behind LLMPort, the ONE seam every model call goes through: always sets max_tokens, logs model/tokens/USD cost/latency, retries transient failures with backoff, and replays a repeated idempotency_key WITHOUT re-billing. An unpriced model reports 0.0 and warns rather than inventing a cost. Provider selectable via settings (openai | scripted), failing fast at boot when OPENAI_API_KEY is absent.",
+      "verification": "uv run pytest tests/unit/adapters/test_openai_llm.py tests/unit/adapters/test_llm_factory.py -q",
+      "passes": true,
+      "evidence": "s8 (2026-07-26). adapters/outbound/openai_llm.py + llm_factory.py. 17 unit tests, no API key and no network required (SDK client is injected). IV&V reviewed: spec compliant, quality approved, 0 Critical/Important. StubLLM's removal belongs to KB-WIRE-01."
+    },
+    {
+      "id": "INTENT-01",
+      "description": "Natural-language intent routing — the player types in their own words and the text is mapped onto one of the 2-4 constrained options the Branch Oracle already offers. NOT open-ended agency. Model output is untrusted: a choice_id that was not offered is rejected to None, as is malformed JSON and below-threshold confidence. Zero LLM calls when no options exist. The consequence NEVER enters the prompt.",
+      "verification": "uv run pytest tests/unit/services/test_intent_router.py -q",
+      "passes": true,
+      "evidence": "s8 (2026-07-26). services/intent_router.py + prompts/interpret_intent/v1.jinja + CLI wiring; numeric picks still work as the rehearsal path. 8 unit tests. Defence in depth: PlaythroughService.advance independently rejects an unoffered id, so a hallucinated id fails twice."
+    },
+    {
+      "id": "RUN-01",
+      "description": "Playthrough persistence — a run survives between separate HTTP requests. The envelope stores rendered turns already shown to that protagonist PLUS the choice set `advance` needs (a Consequence must survive the round-trip or POST /act cannot apply any choice after a reload). It is NOT a canon read path and is never serialised outward. run_id is generated inside the repository; save() on an unknown id raises rather than silently inserting.",
+      "verification": "uv run pytest tests/integration/test_playthrough_repo.py -q",
+      "passes": true,
+      "evidence": "s8 (2026-07-26). ports/playthrough_repository.py + adapters/outbound/persistence/playthrough_repository.py. Durability proven by close-and-reopen against a real tmp_path file (never :memory:). IV&V found created_at was silently naive on read — a native SQLModel datetime column written 20 lines below the file's own comment warning that SQLAlchemy drops tzinfo; fixed to isoformat text per the FactRow precedent, with a regression test proven falsifiable."
+    },
+    {
+      "id": "API-01",
+      "description": "Turn-loop REST API — the minimum surface a client needs to play: GET /characters, POST /play, GET /play/{id}, POST /play/{id}/act (natural language in, executed turn out), POST /play/{id}/replay-as. TurnResponse exposes choice id/label/source_work_id ONLY — never the consequence, which would hand the client the story's future. One error envelope for every failure.",
+      "verification": "uv run pytest tests/e2e/test_play_api_e2e.py -q",
+      "passes": true,
+      "evidence": "s8 (2026-07-26). api/routers/play.py + schemas. IV&V: the no-leak test asserts against RAW response.text (non-circular — asserting against the DTO would test the DTO with itself). Found and fixed: /act returned two incompatible error envelopes for the same 422 (bare HTTPException detail.* vs the app-wide error.*), on the branch a judge is most likely to trigger."
+    },
+    {
+      "id": "OFFLINE-01",
+      "description": "The keyless demo accepts natural-language actions. ScriptedLLM answers an intent-classification prompt with valid JSON by a transparent deterministic rule, so LLM_PROVIDER=scripted routes typed input without a network. The unmatched path stays reachable ('I fly to Cuba and start a new life' -> no match), and render prompts still return prose.",
+      "verification": "uv run pytest tests/unit/adapters/test_scripted_llm.py tests/e2e/test_intent_routing_scripted_llm_e2e.py -q",
+      "passes": true,
+      "evidence": "s8 (2026-07-26). Fixed in the ADAPTER, never by relaxing IntentRouter — its rejection rules are security properties. Before this, scripted mode 422'd on EVERY typed action, so the 'runs with no API key' stage guarantee held only for numeric picks."
+    },
+    {
+      "id": "INGEST-02",
+      "description": "Full-novel knowledge base — `story-engine ingest --novel <pdf>` writes the whole book through the ONE CanonIngestService (canon first, vector second), keeping the lanes in sync. Verified on the real novel: 402,550 chars / 133 pages / 27 chapters / 612 facts, canon 612 == vector 612, and the spoiler guard gating monotonically (ch1 23/612, ch5 108, ch14 310, ch27 612/612).",
+      "verification": "uv run pytest tests/e2e/test_ingest_e2e.py -q",
+      "passes": true,
+      "evidence": "s8 (2026-07-26). cli/ingest.py. IV&V ruled the three-lane guard-parity test FALSIFIABLE: it queries store, vector and graph independently using a fact absent at ch1 for a real reason (Doakes first appears ch3), with positive controls at ch3."
+    },
+    {
+      "id": "SCENARIO-01",
+      "description": "The full acceptance scenario, end to end: start, select Dexter, load his memory, type natural language, interpret, execute, canon updates, agent memories update, the rest of the cast reacts on only what they know, narration, a second action immediately, consistency across a restart, NO leak, continue. Includes the 'no API key, over HTTP, through build_container' join that nothing previously exercised.",
+      "verification": "uv run pytest tests/e2e/test_full_scenario_e2e.py -q",
+      "passes": true,
+      "evidence": "s8 (2026-07-26). The leak assertion uses an INDEPENDENT oracle: _RecordingLLM captures the exact prompt STRING sent to the model and the check is a plain substring search — it no longer verifies the guard by consulting the guard. The prior tautological test was kept (it still covers the store-level contract) with the independent assertion added beside it."
+    },
+    {
+      "id": "CONTRACT-01",
+      "description": "The frontend contract cannot drift silently — a test asserts every path and response field the TypeScript client declares exists in the served /openapi.json, so a backend rename FAILS A TEST instead of breaking the UI on stage.",
+      "verification": "uv run pytest tests/e2e/test_api_contract.py -q",
+      "passes": true,
+      "evidence": "s8 (2026-07-26). Run early (right after the API) rather than before the rewire, deliberately. It proved the existing six screens are a client of a DIFFERENT product model — 5 unbridgeable gaps — which rescoped the frontend work from a rewire to one additive /play route."
+    },
+    {
       "id": "HARDEN-05",
       "description": "Author local sqlmodel/pytest/thin-pydantic skills modeled on the FastAPI skill structure",
       "verification": "test -e .claude/skills/sqlmodel/SKILL.md && test -e .claude/skills/pytest/SKILL.md",

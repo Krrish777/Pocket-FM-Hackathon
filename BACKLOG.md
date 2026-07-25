@@ -4,6 +4,57 @@
 > `feature_list.json` (with a `verification` command, `passes:false`). `feature_list.json` is the machine
 > source of truth; this file is for humans to plan and reorder.
 
+## 🔵 POST-DEMO / STRETCH — Databricks agent memory + vector search (added session 8, 2026-07-26)
+
+> **Requested by the maintainer.** Parked here deliberately: it is **not** on the demo path, and
+> session 8's plan (`docs/superpowers/plans/demo-path-integration.md`) is a closed fence. Do not start
+> this before the P0 integration tasks are green.
+
+**Why it is plausible:** the maintainer has a real Databricks workspace for this hackathon (AI Dev Kit
+installed 2026-07-25), so this is a sponsor-visible integration with the infrastructure already
+provisioned — Vector Search endpoints + indexes, and Unity Catalog / Lakebase for durable agent state.
+
+**Why it must NOT be a swap of what exists:**
+
+- **The canon store stays the source of truth.** `project_context.md` §4.4 and this repo's one
+  architectural rule allow **one store and two derived lanes** — a graph projection and a vector
+  index. Databricks Vector Search would be a **replacement implementation of the existing
+  `VectorStorePort`**, not a new lane, and not a second home for facts.
+- **The spoiler guard is non-negotiable and must stay a PRE-filter.** `SqliteVectorStore` applies
+  `domain.models.canon.is_visible` *before* similarity, so a withheld fact is never a candidate. A
+  hosted index that filters *after* retrieval — or worse, returns text the guard never saw — is an
+  unguarded fourth read path and a spoiler side-channel. Any Databricks adapter must push the
+  epistemic filter down into the query (`filters=` on the index) **and** re-assert `is_visible` on the
+  way out. Belt and braces, because a leak is a hard build failure.
+- **Per-character memory is NOT per-agent storage.** Do not reach for a hosted "agent memory" product
+  that gives each character its own bucket. Character memory here is a *filtered view* over one world
+  state (`Fact.knower_scope` + `store.visible_to()`), which is exactly what makes `replay_as` a
+  parameter change rather than a rewrite. Five separate memories would turn the closing demo beat into
+  a rebuild and violate §4.4's uniform state schema.
+- **Offline must survive.** The demo's stage guarantee is that it runs with no network and no API key.
+  A Databricks lane must be *selectable* (like `llm_provider`), never mandatory — the same shape as
+  `LLM_PROVIDER=scripted`.
+
+**Shape of the work, if it is picked up:**
+
+| Step | Thing | Note |
+|---|---|---|
+| 1 | `DatabricksVectorStore` implementing the existing `VectorStorePort` (`add`/`remove`/`search`/`ids`) | one adapter file; no pipeline change — that is what the port is for |
+| 2 | A real embedder behind `EmbedderPort` (Databricks serving endpoint, or `fastembed` locally) | `HashingEmbedder` is near-random on natural language; already on this backlog |
+| 3 | `vector_provider: Literal["sqlite","databricks"]` in settings, wired in `bootstrap.py` only | composition root is the only place adapters are chosen |
+| 4 | Guard-parity test suite run against BOTH implementations | the leak suite must pass identically, or the adapter does not ship |
+| 5 | Optional: Lakebase/UC for durable playthrough state, replacing the SQLite run repository | only after the API path is proven; same port, same tests |
+
+**Acceptance:** the existing spoiler-guard leak tests pass **unchanged** against the Databricks
+adapter, and `LLM_PROVIDER=scripted` + `VECTOR_PROVIDER=sqlite` still runs the whole demo offline.
+**If the guard cannot be pushed into the hosted query, stop and report it** — do not ship a lane that
+filters after retrieval.
+
+**Est.** 3–4 h for steps 1–4, and it buys nothing the judge can see beyond the sponsor logo, which is
+why it sits below every demo-path item.
+
+---
+
 ## 🟢 NOW — what is left after the demo shipped (end of session 7, 2026-07-25)
 
 > **The demo runs:** `uv run story-engine play --auto --turns 5 --replay-as deborah` — no API key.
@@ -382,3 +433,27 @@ would be building the harness for a product that does not exist yet.
 
 ## Parking lot (ideas, not committed)
 - _add here_
+
+## 🔴 KNOWN GAP (session 8, 2026-07-26) — the graph lane is empty on the DEMO fork
+
+Found by the full-scenario e2e (`tests/e2e/test_full_scenario_e2e.py`), reported rather than papered over.
+
+**What:** every fact in the demo's authored canon (`resources/dexter_demo.py` anchors, and the
+consequences `PlaythroughService._fact_for` writes) is stored with `object_literal` and never
+`object_id`. `LoreGraph.from_facts` only projects an edge for a fact carrying `object_id` — per
+`domain/graph.py`, *"a literal-valued fact is an attribute, not a relation: no second endpoint."*
+So the graph projection is **structurally empty for the entire Dexter demo, no matter how many turns
+are taken**, and the "graph updates" step of the acceptance scenario is not exercised on that fork.
+
+**How narrow it is (this matters):** the graph lane itself is **not** broken. Task 7's guard-parity
+test drives it against **ingested novel** facts and includes a passing positive control at ch3. It is
+specifically the four authored demo anchors that cannot produce edges.
+
+**Why it was not fixed in session 8:** it is a property of the authored demo *data*, not of the graph
+code; the lane is proven on real ingested data; and S2 (the ripple visualisation), which is the only
+surface that would show a judge an empty graph, is an unbuilt SHOULD.
+
+**If picked up:** give the demo anchors genuine `object_id` relations (e.g. `dexter --knows--> brian`
+rather than a literal string) so the demo fork projects real edges. Check `PlaythroughService._fact_for`
+too — it writes `object_literal` unconditionally. Then assert a non-empty `LoreGraph.edges` in the
+scenario test, replacing the current honest `== ()` assertion.

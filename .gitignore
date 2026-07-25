@@ -60,3 +60,4 @@ temp/
 # Generated eval index — rebuilt from data/external on first eval run
 evals/.canon_index.db
 evals/.dataset.json
+.gstack/

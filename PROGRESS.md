@@ -4,6 +4,31 @@
 > `session_handoff.md`; decisions in `DECISIONS.md`; the machine task list is `feature_list.json`.
 
 ## Current State
+> **▶ SESSION 8 (2026-07-26) COMPLETE — branch `integration-demo-path`, 15 commits.** Phase was
+> **INTEGRATION**, not feature work: every major component existed and was tested, but the product was
+> reachable only from one CLI command. Plan: `docs/superpowers/plans/demo-path-integration.md`
+> (12 Global Constraints — **read them before touching anything**; they are what the review subagents
+> enforce). Full ledger with every ruling: `.superpowers/sdd/demo-path-integration/progress.md`.
+>
+> **The product now runs end to end over HTTP with NO API key.** Pick a character, type an action in
+> your own words, watch the world evolve, replay the same branch as someone who was not there.
+> Verified live, not merely tested — see "Verified live" below.
+>
+> **Gate: 579 passed, exit 0** (from a 497 baseline; +82 tests, zero regressions). **41/48 features**,
+> every flip earned by its own passing verification command.
+>
+> **Method note worth keeping:** every task was implemented by one subagent and then *independently
+> reviewed* by another against the plan's constraints, with reviewers instructed to read the tests
+> rather than trust the implementer's report. That found **five defects a green suite could not see** —
+> a dead `except` clause, a silently-naive timestamp, two incompatible error envelopes on one endpoint,
+> natural-language input being wholly non-functional in the keyless demo, and a structurally empty
+> graph lane on the demo fork.
+>
+> **What is honestly still open:** `M8` (traits/goals do not exist), `M7` (no §5.5 verifier), `M4`
+> (mined coverage is 1 of 4 anchored chapters — the oracle is real, the corpus is thin), `KB-13`,
+> `S1`/`S2` (unbuilt SHOULDs), `HARDEN-05`. The graph lane is empty on the demo fork (all facts carry
+> `object_literal`) — logged in `BACKLOG.md` with the fix path.
+
 - **Phase:** **PRODUCT** (the brief has landed; harness phase is closed). The problem statement is selected,
   narrowed, and written up — **`project_context.md` is the single source of truth for what we are building
   and why. Read it before building anything.**
@@ -68,6 +93,76 @@
   at ch3). `fastembed` behind `EmbedderPort` is the fix.
 
 ## Completed
+### Session 8 (2026-07-26) — INTEGRATION: the engine stops being CLI-only (in progress)
+> Run as an independent audit → plan → subagent-driven execution. Branch **`integration-demo-path`**.
+> Plan: `docs/superpowers/plans/demo-path-integration.md` (10 tasks, 12 global constraints, an explicit
+> not-building list). Ledger: `.superpowers/sdd/demo-path-integration/progress.md`.
+> **Every task is implemented by one subagent, then independently reviewed by another** against the
+> plan's constraints — the reviewer reads the tests rather than trusting the implementer's report.
+
+- [x] **LLM-01 — the real LLM adapter (Task 1, `79fa1a6`).** `OpenAILLM` behind the existing `LLMPort`,
+      plus `build_llm(settings)` selecting `openai | scripted`. **17 unit tests, no API key, no network** —
+      the SDK client is injected. What the tests actually prove, as distinct from what they cover:
+      the idempotency test asserts a **call count of 1** (not merely equal results), the 400 test asserts
+      **exactly one attempt**, and the budget test asserts the error fires **before** any client call.
+      Cost is never invented: an unpriced model reports `0.0` and warns.
+      Gate after: **514 passed**, exit 0.
+- [x] **INTENT-01 — natural-language intent routing (Task 2, `8a47254`).** The player types in their own
+      words; the text is mapped onto one of the 2-4 options the oracle already offers. 8 unit tests.
+      **The security property:** a `choice_id` the model invented is rejected to `None` — and it is
+      rejected *twice*, because `PlaythroughService.advance` independently refuses an unoffered id (a
+      guard written for a different reason entirely, which is a sign the original invariant sat at the
+      right level). **The leak property is structural, not instructional:** the prompt payload is built as
+      literally `{id, label}` per option, so the whole `Consequence` is excluded no matter what fields are
+      added to it later. `hashlib`, never builtin `hash()` — the latter is randomised by `PYTHONHASHSEED`
+      and would break replay across restarts, silently. Gate after: **522 passed**, exit 0.
+- [x] **Task 3 — the KB wired into the composition root** (`51a1066`). `stub_llm.py` deleted;
+      `CanonIngestService` added with the mandated canon-first/vector-second policy + `reconcile()`.
+      **IV&V found a Critical the green suite could not see:** `bootstrap.py` caught
+      `DocumentIngestionError` around `seed_canon`, which raises `DemoSeedError` — a *sibling* under
+      `StoryEngineError`, not a subclass, so the handler was dead code. A drifted anchor crashed
+      `build_container()`, and `story-engine reconcile` (which calls it) was unreachable in exactly
+      the case it repairs. Fixed with a regression test proven falsifiable.
+- [x] **RUN-01 — playthrough persistence** (`b58fc92`). Durability by close-and-reopen against a real
+      file. IV&V caught `created_at` declared as a native SQLModel column **20 lines below this
+      file's own comment** warning that SQLAlchemy drops `tzinfo`; now isoformat text, per `FactRow`.
+- [x] **API-01 — the turn-loop API** (`b9596ae`): `/characters`, `/play`, `/play/{id}`,
+      `/play/{id}/act`, `/play/{id}/replay-as`. `TurnResponse` exposes choice id/label/source only —
+      never the consequence, which would hand the client the story's future. IV&V caught `/act`
+      returning **two incompatible error envelopes for the same 422**, on the branch a judge is most
+      likely to trigger.
+- [x] **OFFLINE-01 — the keyless demo accepts typed actions** (`4b9d131`). Scripted mode previously
+      422'd on **every** natural-language action, so "runs with no API key" held only for numeric
+      picks. Fixed in the **adapter**, never by relaxing `IntentRouter` — its rejection rules are
+      security properties.
+- [x] **M4 (partial, honestly) — the corpus branch oracle** (`568bf83`, wired `20151a7`). A real
+      harvest: 7 works / 89 chapters / **5 branch points, every one `support: 1`**, each carrying a
+      genuine `wattpad:<id>`. Behind `BRANCH_ORACLE=corpus`, **default off** — flipping it changes a
+      chapter's option set and therefore the fact count `DEMO_SCRIPT` keys on. **Only 1 of the demo's
+      4 anchored chapters** gets a mined alternate; the rest stay authored with `source_work_id=None`,
+      so mined and authored remain distinguishable. IV&V verified there is **no path** by which an
+      authored option acquires a fabricated source id.
+- [x] **INGEST-02 — the real novel is in the knowledge base** (`f1917fe`): 402,550 chars / 133 pages /
+      **27 chapters / 612 facts**, canon lane == vector lane, guard gating monotonically
+      (ch1 23/612 → ch27 612/612).
+- [x] **SCENARIO-01 — the full scenario, with an INDEPENDENT leak oracle** (`c1c8e3c`). `_RecordingLLM`
+      captures the exact prompt **string** sent to the model; the check is a plain substring search.
+      The old flagship test verified the guard by consulting the guard — it passed by construction.
+      It was **kept** (it still covers the store-level contract) with the real oracle added beside it.
+- [x] **CONTRACT-01 + the frontend** (`ae7793b`, `e2823c6`). The contract test makes a backend rename
+      **fail a test** instead of breaking the UI on stage. It also proved the existing six screens are
+      a client of a **different product model** (5 unbridgeable gaps), so the frontend work was
+      rescoped from a rewire to **one additive `/play` route**; the mock stage fallback is untouched.
+
+### Verified live, over HTTP, with NO API key
+`GET /characters` → 5 cast · `POST /play` → turn with citations, `withheld=3`, **no consequence in the
+payload** · `POST /act "I go finish the priest tonight"` → interpreted, ch1→ch2, withheld 3→2, four
+reaction directives · `POST /act "I fly to Cuba and start a new life"` → **422** with the unified
+envelope and the offered labels in `context` · `POST /replay-as deborah` → **withheld 6 and 5 where
+Dexter saw 2**, narrating a woman who does not know what he did. That last contrast is the product.
+
+**Gate: 579 passed, exit 0** (from 497). **41/48 features.**
+
 ### Session 7c (2026-07-25) — the rest of the cast reacts (M6 ✅)
 - [x] **M6 — derived directives.** The renderer now receives a directive for every *other* cast
       member, closing the half of §4.4 that was missing:

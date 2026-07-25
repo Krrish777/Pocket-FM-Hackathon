@@ -684,3 +684,86 @@
 - **Rule adopted:** a cap or count assertion uses `==`, never `<=` — `assert len(stories) <= 2` is also
   satisfied by a harvester that returns nothing, and passed for exactly that reason.
 - **Consequence:** `PerChapterSource` / `PerWorkSource` doubles now serve distinct text per chapter/work.
+
+## 2026-07-26 (session 8): OpenAI is the LLM provider; `scripted` stays as the offline fallback
+- **Reason:** This is the Pocket FM **x OpenAI** hackathon — judges will expect the sponsor's models, and
+  it is the one provider choice the event itself argues for.
+- **Shape:** `OpenAILLM` behind the existing `LLMPort` (one seam, unchanged), selected by
+  `settings.llm_provider: Literal["openai","scripted"]` via `adapters/outbound/llm_factory.build_llm`.
+  Defaults: `default_model=gpt-4o` for prose, `intent_model=gpt-4o-mini` for classification — a
+  structured, continuity-critical call is both cheaper and *more reliable* on a small model at low
+  temperature than on the narrator model.
+- **Rejected:** Anthropic (no sponsor signal here); dual-provider auto-detect (~30 min for a fallback we
+  can already get by flipping to `scripted`, which needs no network at all).
+- **Kept deliberately:** `ScriptedLLM`. A rehearsed stage demo must not be killable by a timeout, a rate
+  limit, or an unlucky sample. `LLM_PROVIDER=scripted` runs the whole product with **no API key**.
+
+## 2026-07-26 (session 8): Cost is metered honestly — an unpriced model reports 0.0 and warns
+- **Reason:** A fabricated price flows straight into the budget guard and makes it *confidently wrong*.
+  Zero is visibly missing data; a plausible number is invisible corruption.
+- **Shape:** `PRICING_USD_PER_MTOK` with longest-prefix match (so dated snapshots price as their base
+  model); an unmatched model logs a WARNING naming the model and reports `cost_usd=0.0`.
+- **Related:** a repeated `idempotency_key` replays the cached `Generation` without a network call, so a
+  retried turn is never billed twice. The turn loop keys on `{knower}:{chapter}:{fact_count}`.
+
+## 2026-07-26 (session 8): The player input is NAMED "natural-language intent", never "free-form"
+- **Reason (maintainer's call, and it is a correctness issue, not a style one):** we map typed text onto
+  an already-offered, pre-validated option set. Calling that "free-form" or "open-ended" promises
+  open-ended agency we do not have — and the overclaim migrates from the pitch into the code, at which
+  point somebody starts building a game engine out of a classifier.
+- **Shape:** binding in identifiers, docstrings, logs, API fields and demo copy; an overclaiming name is
+  a Critical review finding. Using the words to *disclaim* ("this is NOT an open-ended interpreter") is
+  correct and expected.
+- **The honest pitch is the strong one:** *"say it however you want; we ground it in a divergence fan
+  fiction actually wrote."* Grounding is a **feature** — an unvalidated generated branch is precisely the
+  incoherence this product claims to have solved.
+- **Rejected:** true free-form generation (D-2). It would put unvalidated generation on stage in the one
+  demo whose thesis is that we solved incoherence.
+
+## 2026-07-26 (session 8): Canon-first / vector-second, with reconcile — the ingest atomicity policy
+- **Reason:** "one unit of work" without a stated failure policy is how drift arrives mid-demo. The two
+  failure directions are **not** symmetric, so this is not a coin flip:
+  - *vector-first, canon fails* → a vector entry with no canon row to gate against. That is an
+    **unguarded read path** — a spoiler side-channel, and the one thing this architecture forbids.
+  - *canon-first, vector fails* → source of truth intact, a derived index under-returns. A degradation,
+    not a correctness violation, and repairable.
+- **Shape:** canon first, vector second. On a vector failure: log ERROR, **continue the batch** (one bad
+  embedding must not abort a novel-length ingest), return the orphan ids, and raise `IngestDriftError` at
+  the end — fail loud, after doing all the work that could succeed. Plus
+  `reconcile(fork_id) -> (repaired, still_missing)`, idempotent, exposed as `story-engine reconcile`.
+- **Rejected:** a compensating delete against the canon store. It is append-only by design (`supersede`
+  closes a validity window, it does not delete), so a "rollback" would mean writing a phantom correction
+  claiming the fact was never true.
+- **Test prohibition recorded:** no test may assert the vector-first ordering — a test that locks in the
+  unsafe order is itself a defect.
+
+## 2026-07-26 (session 8): The frontend contract is checked as soon as the API lands, not at the end
+- **Reason (maintainer's call):** the mismatch is *already known* — the frontend's `CanonClient` targets
+  the superseded `getMoments`/`postDivergence`/`postRegenerate` shape while the backend serves a turn
+  loop. A contract break discovered after everything else is green is discovered with no runway left.
+- **Shape:** the rewire still goes last, but a contract task runs immediately after the API: TypeScript
+  contract types, a smoke test asserting every path/field the frontend declares exists in the served
+  `/openapi.json` (so a backend rename **fails a test** instead of breaking the UI on stage), and a thin
+  rename-and-reshape-only `adapters.ts` shim so the rewire is a swap at one seam, not six screens.
+
+## 2026-07-26 (session 8): The corpus Branch Oracle ships wired but DEFAULT-OFF
+- **Context:** the real harvest returned 7 works / 89 chapters / **5 branch points, every one `support: 1`** —
+  a canon baseline plus exactly one mined alternate, each carrying a genuine `wattpad:<id>`. Only **1 of the
+  demo's 4 anchored chapters** gets a mined alternate; the rest legitimately fall back to authored options.
+- **Decision:** wire `CorpusBranchOracle` behind `settings.branch_oracle: Literal["authored","corpus"]`,
+  defaulting to **`authored`**.
+- **Reason (both halves matter):** left unwired, the running product serves 100% authored options and the
+  headline claim stays false where a judge would actually see it. Wired as the *default*, a chapter's option
+  set changes, which changes the visible-fact count that `DEMO_SCRIPT` keys on
+  (`{knower}:{chapter}:{fact_count}`) — silently degrading the one rehearsed path we cannot afford to lose
+  on stage. A flag gets the true beat without betting the demo on it.
+- **What this makes honestly demonstrable:** with `BRANCH_ORACLE=corpus`, at least one decision point shows
+  `(from fan fiction wattpad:<id>)` and that sentence is **true**. Everything else still reads
+  `source_work_id=None`, so mined and authored stay distinguishable at a glance.
+- **Rejected:** (a) leaving it unwired — closes nothing a judge can see; (b) making it the default — risks the
+  rehearsed path for a beat we can show deliberately; (c) back-filling authored options with plausible source
+  ids — that is fabricating provenance, and is worse than the authored table it replaces, because the
+  authored table is at least honestly labelled.
+- **Known limit, recorded rather than papered over:** the chapter→branch-point mapping is an **entity-based
+  heuristic**, not a canon-scene binding. The project's own EXT-1 contract §6 states that linkage does not
+  exist yet. Do not describe it as a scene link.
