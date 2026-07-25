@@ -7,9 +7,11 @@ handler covers the whole tree via the base class; the table maps specific types 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
+from story_engine.services.playthrough import PlaythroughError, UnknownChoiceError
 from story_engine.shared.errors import (
     BudgetExceededError,
     ContinuityError,
+    PlaythroughNotFoundError,
     PromptError,
     StoryEngineError,
     StoryNotFoundError,
@@ -20,6 +22,13 @@ _STATUS: dict[type[StoryEngineError], int] = {
     ContinuityError: 422,
     BudgetExceededError: 402,
     PromptError: 500,
+    # `_STATUS.get(type(exc), 500)` is an EXACT type lookup, not an isinstance walk — a subclass
+    # does NOT inherit its parent's status code. `UnknownChoiceError` and `PlaythroughError` are
+    # both subclasses of `StoryEngineError` (via `PlaythroughError(StoryEngineError)`) and must
+    # each be registered explicitly, or they silently fall through to 500.
+    PlaythroughNotFoundError: 404,
+    UnknownChoiceError: 422,
+    PlaythroughError: 422,
 }
 
 

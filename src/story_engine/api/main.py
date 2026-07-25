@@ -6,7 +6,8 @@ just collects them. The app factory mounts this aggregate under `settings.api_v1
 
 from fastapi import APIRouter
 
-from story_engine.api.routers import episodes
+from story_engine.api.routers import episodes, play
 
 api_router = APIRouter()
 api_router.include_router(episodes.router)
+api_router.include_router(play.router)

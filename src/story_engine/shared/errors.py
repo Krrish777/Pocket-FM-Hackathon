@@ -37,6 +37,17 @@ class ContinuityError(DomainError):
     code = "continuity_error"
 
 
+class PlaythroughNotFoundError(DomainError):
+    """No playthrough run exists for the given `run_id`.
+
+    Deliberately distinct from `StoryNotFoundError` (which names a missing story/series):
+    a run id is an opaque handle into the playthrough repository, not a story identifier, and the
+    two must map to the same 404 status without being the same concept.
+    """
+
+    code = "playthrough_not_found"
+
+
 # --- generation / infrastructure -------------------------------------------------------------
 class GenerationError(StoryEngineError):
     """An LLM generation failed or produced unusable output."""
