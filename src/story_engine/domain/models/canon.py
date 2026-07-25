@@ -11,9 +11,9 @@ The domain takes no clock: callers supply `recorded_at`, so the core stays deter
 and offline-testable. See PRD-KNOWLEDGE-BASE.md §8.1 and §9.
 """
 
-from datetime import datetime
+from typing import Annotated
 
-from pydantic import Field, model_validator
+from pydantic import AwareDatetime, Field, model_validator
 
 from story_engine.domain.base import DomainModel
 from story_engine.domain.enums import (
@@ -30,8 +30,14 @@ from story_engine.domain.enums import (
     VerificationLane,
 )
 
-type ChapterIndex = int
-"""1-based position in the telling. Ordering only — it carries no duration."""
+type ChapterIndex = Annotated[int, Field(ge=1)]
+"""1-based position in the telling. Ordering only — it carries no duration.
+
+The `ge=1` travels with the type so every use — even one that forgets to repeat the
+field-level constraint — still rejects nonsense like a negative chapter. Existing
+field-level `ge=1` constraints are kept anyway (belt and braces); removing them would be
+a larger diff than this fix warrants.
+"""
 
 AUDIENCE = "audience"
 """Knower-scope sentinel: the reader/listener at the current point in the telling."""
@@ -157,10 +163,12 @@ class Fact(DomainModel):
     )
     status: FactStatus = FactStatus.ACTIVE
 
-    recorded_at: datetime = Field(
-        description="Record time: when this store learned it."
+    recorded_at: AwareDatetime = Field(
+        description="Record time: when this store learned it. Timezone-aware only — "
+        "SQLite round-trips through text, and one naive row next to one aware row makes "
+        "as-of comparisons raise TypeError."
     )
-    superseded_at: datetime | None = Field(
+    superseded_at: AwareDatetime | None = Field(
         default=None, description="Record time: when this store retired it."
     )
 
@@ -228,6 +236,31 @@ class Fact(DomainModel):
             raise ValueError("an INVALIDATED fact must record superseded_at")
         return self
 
+    @model_validator(mode="after")
+    def _record_window_is_ordered(self) -> "Fact":
+        # Mirrors _validity_window_is_ordered, but for record time: a fact whose record
+        # window closed while status stayed ACTIVE would stay visible and still count as
+        # current, and one retired before it was recorded is nonsense.
+        if self.status is FactStatus.ACTIVE and self.superseded_at is not None:
+            raise ValueError("an ACTIVE fact must not carry a superseded_at")
+        if self.superseded_at is not None and self.superseded_at < self.recorded_at:
+            raise ValueError("superseded_at must not precede recorded_at")
+        return self
+
+    @model_validator(mode="after")
+    def _reveal_matches_scope(self) -> "Fact":
+        # revealed_at and knower_scope are two encodings of telling time; letting them
+        # disagree lets a fact the text put on the page still be denied to the audience.
+        if (
+            self.revealed_at is not None
+            and self.knower_scope is not None
+            and AUDIENCE not in self.knower_scope
+        ):
+            raise ValueError(
+                "a revealed_at fact with a tracked knower_scope must include AUDIENCE"
+            )
+        return self
+
 
 _FORWARD_TRANSITIONS: dict[CommitmentState, frozenset[CommitmentState]] = {
     CommitmentState.PLANTED: frozenset(
@@ -291,6 +324,13 @@ class Scene(DomainModel):
             p.entity_id for p in self.roster if p.grade is not PresenceGrade.REFERENCED
         )
 
+    @model_validator(mode="after")
+    def _roster_has_no_duplicate_entities(self) -> "Scene":
+        seen_ids = [p.entity_id for p in self.roster]
+        if len(seen_ids) != len(set(seen_ids)):
+            raise ValueError("roster must not grade the same entity_id twice")
+        return self
+
 
 class Commitment(DomainModel):
     """A narrative debt, tracked from planting to discharge.
@@ -321,6 +361,8 @@ class Commitment(DomainModel):
     def _payoff_is_consistent(self) -> "Commitment":
         if self.state is CommitmentState.PAID_OFF and self.payoff_at is None:
             raise ValueError("a PAID_OFF commitment must record payoff_at")
+        if self.payoff_at is not None and self.state is not CommitmentState.PAID_OFF:
+            raise ValueError("payoff_at is only valid on a PAID_OFF commitment")
         if self.payoff_at is not None and self.payoff_at < self.planted_at:
             raise ValueError("payoff_at must not precede planted_at")
         return self

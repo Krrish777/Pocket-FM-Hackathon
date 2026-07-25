@@ -189,6 +189,50 @@ def test_invalidated_fact_must_record_when_it_was_superseded() -> None:
         _fact(status=FactStatus.INVALIDATED, superseded_at=None)
 
 
+def test_recorded_at_rejects_a_naive_datetime() -> None:
+    """SQLite round-trips text; one naive + one aware row breaks as-of comparisons."""
+    with pytest.raises(ValidationError):
+        _fact(recorded_at=datetime(2026, 1, 1))
+
+
+def test_superseded_at_rejects_a_naive_datetime() -> None:
+    with pytest.raises(ValidationError):
+        _fact(
+            status=FactStatus.INVALIDATED,
+            superseded_at=datetime(2026, 1, 2),
+        )
+
+
+def test_active_fact_must_not_carry_a_superseded_at() -> None:
+    """A record window that closed but never flipped status stays visible forever."""
+    with pytest.raises(ValidationError):
+        _fact(
+            status=FactStatus.ACTIVE,
+            superseded_at=RECORDED,
+        )
+
+
+def test_superseded_at_must_not_precede_recorded_at() -> None:
+    """Retired before it was recorded is nonsense."""
+    with pytest.raises(ValidationError):
+        _fact(
+            status=FactStatus.INVALIDATED,
+            recorded_at=RECORDED,
+            superseded_at=datetime(2026, 7, 25, 11, 0, tzinfo=UTC),
+        )
+
+
+def test_revealed_fact_with_tracked_scope_must_include_audience() -> None:
+    """Two encodings of telling time (revealed_at, knower_scope) must not disagree."""
+    with pytest.raises(ValidationError):
+        _fact(revealed_at=3, knower_scope=frozenset({"holmes"}))
+
+
+def test_revealed_fact_with_audience_in_scope_is_accepted() -> None:
+    fact = _fact(revealed_at=3, knower_scope=frozenset({AUDIENCE, "holmes"}))
+    assert fact.is_visible_to(AUDIENCE, 5) is True
+
+
 def test_is_valid_at_respects_the_story_time_window() -> None:
     fact = _fact(valid_from=5, valid_to=10)
     assert fact.is_valid_at(4) is False
@@ -224,6 +268,28 @@ def test_is_visible_to_combines_status_reveal_and_scope() -> None:
 def test_quarantined_fact_is_visible_to_nobody() -> None:
     fact = _fact(status=FactStatus.QUARANTINED)
     assert fact.is_visible_to(AUDIENCE, 9999) is False
+
+
+def test_invalidated_fact_is_visible_to_nobody() -> None:
+    """Supersession sets INVALIDATED, not QUARANTINED — both must hide the fact."""
+    fact = _fact(
+        status=FactStatus.INVALIDATED,
+        superseded_at=datetime(2026, 7, 25, 13, 0, tzinfo=UTC),
+    )
+    assert fact.is_visible_to(AUDIENCE, 9999) is False
+
+
+def test_fact_round_trips_through_model_dump() -> None:
+    """The next milestone's contract: dump then re-validate must reproduce the fact."""
+    fact = _fact(
+        knower_scope=frozenset({AUDIENCE, "kael"}),
+        valid_to=20,
+        status=FactStatus.INVALIDATED,
+        superseded_at=datetime(2026, 7, 25, 13, 0, tzinfo=UTC),
+        assertion_mode=AssertionMode.ATTRIBUTED,
+        attributed_to="marcus",
+    )
+    assert Fact.model_validate(fact.model_dump()) == fact
 
 
 def test_foreshadowed_fact_is_revealed_before_it_is_true() -> None:
@@ -264,6 +330,30 @@ def test_scene_witnesses_exclude_merely_referenced_entities() -> None:
     assert scene.witnesses == frozenset({"holmes", "watson"})
 
 
+def test_scene_roster_rejects_duplicate_entity_ids() -> None:
+    """A roster grading the same entity twice must not silently pick a winner."""
+    with pytest.raises(ValidationError):
+        Scene(
+            id="s-1",
+            fork_id="canon",
+            chapter=3,
+            order_in_chapter=1,
+            summary="Holmes examines the ash.",
+            roster=(
+                Presence(entity_id="a", grade=PresenceGrade.REFERENCED),
+                Presence(entity_id="a", grade=PresenceGrade.ACTIVE),
+            ),
+        )
+
+
+def test_chapter_index_rejects_nonpositive_values() -> None:
+    """ChapterIndex carries ge=1 as part of the type, not just per-field repetition."""
+    with pytest.raises(ValidationError):
+        Provenance(source_id="src-1", chapter=0, char_start=0, char_end=5, quote="x")
+    with pytest.raises(ValidationError):
+        Provenance(source_id="src-1", chapter=-9, char_start=0, char_end=5, quote="x")
+
+
 def _commitment(**overrides: object) -> Commitment:
     defaults: dict[str, object] = {
         "id": "c-1",
@@ -301,6 +391,18 @@ def test_paid_off_commitment_must_record_where_it_paid_off() -> None:
 def test_payoff_must_not_precede_planting() -> None:
     with pytest.raises(ValidationError):
         _commitment(state=CommitmentState.PAID_OFF, planted_at=10, payoff_at=4)
+
+
+def test_payoff_at_is_illegal_off_a_paid_off_commitment() -> None:
+    """A broken promise recording where it paid off is meaningless state."""
+    with pytest.raises(ValidationError):
+        _commitment(state=CommitmentState.BROKEN, payoff_at=9)
+
+
+def test_triggered_commitment_can_transition_to_paid_off() -> None:
+    """The single most important legal commitment transition."""
+    triggered = _commitment(state=CommitmentState.TRIGGERED)
+    assert triggered.can_transition_to(CommitmentState.PAID_OFF) is True
 
 
 def test_hard_lane_flag_must_cite_at_least_one_fact() -> None:

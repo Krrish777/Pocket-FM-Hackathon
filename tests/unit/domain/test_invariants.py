@@ -109,6 +109,15 @@ def test_superseded_facts_do_not_conflict() -> None:
     assert conflicting_active_facts(facts, chapter=5) == ()
 
 
+def test_agreeing_facts_with_the_same_object_are_not_a_conflict() -> None:
+    """Two extractors emitting the identical fact is the commonest input, not a conflict."""
+    facts = (
+        _fact("f-1", predicate="located_in", object_id="london", valid_from=1),
+        _fact("f-2", predicate="located_in", object_id="london", valid_from=1),
+    )
+    assert conflicting_active_facts(facts, chapter=3) == ()
+
+
 def test_facts_in_different_forks_do_not_conflict() -> None:
     """Contradicting canon is legal inside a fork — that is what a fork is for."""
     facts = (
