@@ -270,6 +270,66 @@ class SqliteCanonStore:
             f for f in self.all_facts(fork_id) if not f.is_visible_to(knower, chapter)
         )
 
+    def record_learning(
+        self, fact_id: str, knower_scope: tuple[Awareness, ...]
+    ) -> None:
+        """Amend who knows a fact, enforcing monotonicity at the boundary.
+
+        The guard lives here rather than only in `domain.propagation` because this is the last
+        point before the bytes land: a caller that computed a scope wrongly, or hand-wrote one,
+        must not be able to make a character forget. Losing a knower is silent — the scene still
+        renders, just with someone ignorant of what the audience watched them learn.
+
+        The amended fact is rebuilt as a `Fact` and re-validated BEFORE the row is touched, for
+        the same reason `supersede` does it: writing attributes directly skips every model
+        validator, and a row that cannot be read must never be writable.
+
+        Raises:
+            KeyError: `fact_id` does not exist.
+            ValueError: The stored fact is untracked, or `knower_scope` drops a knower or delays
+                an existing acquisition.
+        """
+        with session_scope(self._engine) as session:
+            row = session.get(FactRow, fact_id)
+            if row is None:
+                raise KeyError(f"cannot record learning: no fact {fact_id!r}")
+
+            stored = _to_domain(row)
+            if stored.knower_scope is None:
+                raise ValueError(
+                    f"fact {fact_id!r} is untracked; giving it a knower_scope would restrict a "
+                    f"fact that is currently visible to everyone once revealed"
+                )
+
+            previous = {a.knower: a.learned_at for a in stored.knower_scope}
+            proposed = {a.knower: a.learned_at for a in knower_scope}
+            missing = set(previous) - set(proposed)
+            if missing:
+                raise ValueError(
+                    f"non-monotonic scope for {fact_id!r}: would remove knower(s) "
+                    f"{sorted(missing)} — knowledge is never unlearned"
+                )
+            delayed = {
+                knower: (previous[knower], proposed[knower])
+                for knower in previous
+                if proposed[knower] > previous[knower]
+            }
+            if delayed:
+                raise ValueError(
+                    f"non-monotonic scope for {fact_id!r}: would delay {delayed} — a knower "
+                    f"cannot learn something later than they already did"
+                )
+
+            # Re-validate through the model before writing: this is what catches an amended scope
+            # that breaks the revealed_at/AUDIENCE coupling.
+            amended = stored.model_copy(update={"knower_scope": knower_scope})
+            Fact.model_validate(amended.model_dump())
+
+            row.knower_scope = [
+                {"knower": a.knower, "learned_at": a.learned_at} for a in knower_scope
+            ]
+            session.add(row)
+
     def supersede(
         self,
         old_fact_id: str,

@@ -1,0 +1,42 @@
+{# render_scene/v1 — narrate one beat of a playthrough from ONE character's point of view.
+
+   Variables (all required; StrictUndefined makes a missing one fail loud):
+     protagonist : str            — whose eyes this beat is seen through
+     chapter     : int            — position in the telling
+     facts       : list[dict]     — the ONLY canon this scene may use. Each: subject, predicate,
+                                    object, quote. Already filtered by the spoiler guard.
+     choices     : list[str]      — the option labels the player is about to be offered
+
+   THE CONTRACT THIS TEMPLATE RELIES ON: `facts` has already been filtered to what {{ protagonist }}
+   is entitled to know. Nothing withheld is in this prompt, so nothing withheld can leak. The
+   instructions below are belt-and-braces on top of that guarantee, never a substitute for it —
+   see project_context.md 4.4.
+#}
+You are narrating one scene of a Dexter novel from the point of view of {{ protagonist }}.
+
+WHAT {{ protagonist | upper }} KNOWS AT THIS POINT (chapter {{ chapter }}):
+{% for fact in facts %}
+- {{ fact.subject }} {{ fact.predicate }} {{ fact.object }}
+  (from the source: "{{ fact.quote | trim | truncate(220) }}")
+{% else %}
+(Nothing yet. {{ protagonist }} is walking into this cold.)
+{% endfor %}
+
+RULES:
+1. Write ONLY what {{ protagonist }} could perceive, infer, or remember. This list is exhaustive —
+   if something is not above, {{ protagonist }} does not know it and must not act as if they do.
+2. Do not resolve the scene. It ends on the beat before a decision.
+3. Do not mention, hint at, or foreshadow the options listed below. The player chooses; the
+   narration must not lean.
+4. Second person, present tense, 120-180 words. Match the novels' dry first-person interiority.
+5. No headings, no bullet points, no meta-commentary. Prose only.
+
+{% if choices %}
+THE PLAYER IS ABOUT TO CHOOSE BETWEEN (context for pacing only — never name these):
+{% for choice in choices %}
+- {{ choice }}
+{% endfor %}
+End the scene at the moment this decision becomes unavoidable.
+{% else %}
+This is the end of the run. Close the beat with a sense of consequence settling, not a cliffhanger.
+{% endif %}

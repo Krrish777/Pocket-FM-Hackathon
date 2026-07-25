@@ -11,6 +11,27 @@
 
 ---
 
+## 0. Run it
+
+```bash
+# The full rehearsed path: five choices as Dexter, then the same branch as Deborah.
+uv run story-engine play --auto --turns 5 --replay-as deborah
+
+# Play it yourself (prompts for each choice).
+uv run story-engine play --as dexter --turns 5 --replay-as deborah
+```
+
+**No API key is needed.** Beats are replayed from `ScriptedLLM`, so the demo cannot be broken on
+stage by a timeout, a rate limit, or an unlucky sample. Canon is seeded live from
+`data/external/Darkly-Dreaming-Dexter-1.pdf`, so every receipt shown is the book's own words.
+
+**What to watch.** Run it as Dexter, then read the replay. Turn 0 as **Dexter** narrates the Dark
+Passenger and Harry's code with *3 facts withheld*. Turn 0 of **the same branch** as **Deborah**
+reads *"stands at the edge of the moment with nothing to go on"* with *10 facts withheld*. That gap
+is the product.
+
+---
+
 ## 1. The demo, beat by beat
 
 This is the whole artifact. Every task in §3 exists to serve one of these beats.
@@ -98,7 +119,15 @@ PDF → chapters → chunks → `Fact` rows carrying `Provenance(source_id, chap
 
 Serves beats 1, 3, 8. **Open: the PDF path is not yet known — see §7.**
 
-### T3 · Knowledge propagation — 2 h ⚠ **THE LOAD-BEARING TASK**
+### T3 · Knowledge propagation — ✅ **DONE (session 7)** ⚠ *was the load-bearing task*
+Built as `domain/propagation.py` + `CanonStorePort.record_learning`. 24 tests. The invariant that
+governs it: **propagation is monotonic** — it may add a knower or move an acquisition earlier, never
+remove a knower or delay one, and it is enforced at the store boundary as well as in the domain,
+because losing a knower is silent at read time. An **untracked fact stays untracked**: attaching a
+scene's witnesses to a fact everyone can see would *narrow* it, which is the inverse of learning.
+
+<details><summary>original plan</summary>
+
 Derive `knower_scope` from `Scene.witnesses` so knowledge compounds across turns. KB-13's unbuilt half.
 
 Present at the scene → learns it. Absent → does not, until told or able to infer.
@@ -108,13 +137,23 @@ and the setup for the closer (beat 9). It is `project_context.md` §4.2 — the 
 the entire build.
 
 **If exactly one thing gets built well today, it is this.**
+</details>
 
-### T4 · Turn loop — 3 h
+### T4 · Turn loop — ✅ **DONE (session 7)**
+`services/playthrough.py`. Five choices deep against a real store, with a restart, proving the
+acceptance condition per character. Exactly one model call per turn, and it decides nothing.
+Also delivered **T7** (the citation receipt) and **T8** (`replay_as`) — both fell out of the loop
+rather than needing their own passes.
+
+<details><summary>original plan</summary>
+
 `PlaythroughService`: assemble character view → offer branch → apply choice to world state → recompute
 witnesses → propagate → render next scene. One narration call per turn; state transitions deterministic in
 code, never inferred by the model (§4.4).
 
 Closes M2, M3, M6. Serves beats 2, 3, 7.
+</details>
+
 
 ### T5 · Branch Oracle → canon moment binding — 2 h
 The oracle mines divergence points but cannot yet cite a canon scene — our own contract says so. Bind mined

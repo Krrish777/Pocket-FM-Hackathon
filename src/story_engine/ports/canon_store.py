@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Protocol
 
-from story_engine.domain.models import ChapterIndex, Fact, Fork
+from story_engine.domain.models import Awareness, ChapterIndex, Fact, Fork
 
 
 class CanonStorePort(Protocol):
@@ -62,6 +62,26 @@ class CanonStorePort(Protocol):
         self, fork_id: str, knower: str, chapter: ChapterIndex
     ) -> tuple[Fact, ...]:
         """The spoiler-guard exclusion set — retrieval performed in order to EXCLUDE."""
+        ...
+
+    def record_learning(
+        self, fact_id: str, knower_scope: tuple[Awareness, ...]
+    ) -> None:
+        """Amend who knows a fact, without touching the claim itself.
+
+        Learning is not a claim change: the fact stays exactly as true as it was, and only the
+        set of people who know it grows. Routing it through `supersede` would close a validity
+        window that nothing invalidated and litter the history with phantom corrections.
+
+        Implementations MUST reject a non-monotonic scope — one that drops a knower or delays an
+        existing acquisition — so the invariant holds no matter which caller is wrong. See
+        `domain.propagation`.
+
+        Raises:
+            KeyError: `fact_id` does not exist.
+            ValueError: The fact is untracked (a scope would narrow visibility rather than widen
+                it), or the new scope is not monotonic over the stored one.
+        """
         ...
 
     def supersede(

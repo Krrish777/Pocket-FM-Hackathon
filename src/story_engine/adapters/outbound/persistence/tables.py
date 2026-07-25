@@ -67,7 +67,11 @@ class FactRow(SQLModel, table=True):
     assertion_mode: str
     attributed_to: str | None = Field(default=None)
 
-    knower_scope: list[str] | None = Field(default=None, sa_column=Column(JSON))
+    # list[dict], not list[str]: each entry is {"knower": str, "learned_at": int}. The
+    # previous list[str] annotation described a shape this column has never held.
+    knower_scope: list[dict[str, object]] | None = Field(
+        default=None, sa_column=Column(JSON)
+    )
     provenance: dict[str, object] = Field(default_factory=dict, sa_column=Column(JSON))
     confidence: float
     tier: int

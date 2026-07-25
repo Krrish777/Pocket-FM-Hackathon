@@ -46,11 +46,47 @@
 - **Verification:** `make check` is **GREEN** — exit code 0, **479 passing** (up from 447).
   INIT-01…05 + HARDEN-01…04 + FANFIC-01…07 + KB-01/07/08/09/10/11/12 + **INGEST-01** pass.
   HARDEN-05 deferred (deprioritised below product work).
-  **All product features M1–M8 / S1–S3 are still `passes:false`** — the substrate is strong, but nothing
-  the player touches exists yet. Nothing in this repo can render a sentence: only `StubLLM` exists and
-  `prompts/` is a lone README.
+  **The playable layer now exists** (session 7b): `PROP-01`, `PLAY-01` and `DEMO-01` pass, which
+  covers M2/M3/M6/M7 and S3 in substance. The `M*` ids themselves stay `passes:false` until their own
+  verification commands are repaired — several are written as `-m unit -k …`, and `pyproject.toml`
+  registers only `slow`/`integration`/`e2e`, so **there is no `unit` marker and those commands select
+  nothing** (AUD-M3). That is a harness bug, not a build gap; fixing it is T10.
+- **Still genuinely missing:** a real LLM adapter (rendering runs on `ScriptedLLM`), the Branch
+  Oracle bound to canon moments so options come from mined fan fiction rather than the authored table
+  (M4/T5), free-form input (T6), and the frontend rewire (T9).
 
 ## Completed
+### Session 7b (2026-07-25) — **the demo runs end to end** (PROP-01, PLAY-01, DEMO-01 ✅)
+> The engine stopped being a substrate and became a product this session. `uv run story-engine play
+> --auto --turns 5 --replay-as deborah` plays five choices against the real novel and closes on the
+> replay beat. **No API key required.**
+
+- [x] **PROP-01 — knowledge propagation.** The unbuilt half of KB-13, and the acceptance condition
+      of the whole build (`project_context.md` §4.2). `knower_scope` is now derived from
+      `Scene.witnesses`: present at a scene → learns it, absent → does not.
+      **The invariant: propagation is monotonic.** It may add a knower or move an acquisition
+      earlier; it may never remove a knower or delay one — enforced in the domain *and* again at the
+      store boundary, because losing a knower is silent at read time (the scene still renders, just
+      with someone who has forgotten). Two traps, both tested: an **untracked fact stays untracked**
+      (`is_visible` reads `knower_scope is None` as "visible to everyone once revealed", so
+      attaching witnesses would *narrow* it — the inverse of learning), and **earliest acquisition
+      wins**. Learning is deliberately not routed through `supersede`: nothing about the claim
+      changed, so closing its validity window would be a phantom correction.
+- [x] **PLAY-01 — the turn loop.** `PlaythroughService`: assemble the actor's filtered view → apply
+      the choice in code → propagate → render **one** scene. Covers M2/M3/M6/M7 and S3. The E2E
+      plays five choices, reopens the store, and checks the claim per character: Dexter knows from
+      ch1, Doakes learns at ch4 (the turn he was in the room), **Deborah was present at turn 2 but
+      not at the disclosure and never learns it**, the audience is never told.
+- [x] **DEMO-01 — it is playable.** `story-engine play` seeds canon from the real PDF, with quotes
+      **sliced at seed time** rather than pasted, so a receipt cannot drift from its source. Every
+      anchor carries a sentinel, so re-ingestion that moves offsets fails loudly instead of quietly
+      citing the wrong paragraph.
+- [x] **Defect found by running the demo, not by reading it:** the fallback narrator recited the
+      player's upcoming **choice labels** as prose, because the prompt renders known facts and
+      options as the same `- ` bullets and the line scan could not tell them apart — directly under
+      a prompt instruction never to name them. Fixed by scoping the scan to the knowledge block, with
+      a regression test.
+
 ### Session 7 (2026-07-25) — worktree cleanup, scope lock, novel PDF ingestion (INGEST-01 ✅)
 - [x] **Worktrees cleaned and `main` reconciled.** The tree read dirty after `git worktree remove`
       because the index still held gitlink pointers to directories that had vanished.

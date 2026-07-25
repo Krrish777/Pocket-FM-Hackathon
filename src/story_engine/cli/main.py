@@ -23,6 +23,7 @@ from story_engine.adapters.outbound.wiki.jsonl_index_sink import (
     JsonlWikiIndexSink,
 )
 from story_engine.bootstrap import build_container
+from story_engine.cli.play import register as register_play
 from story_engine.domain.models.wiki_index import WikiEntityKind
 from story_engine.ports.fanfic_source import FanficSourcePort
 from story_engine.services.fanfic_harvest import FanficHarvester, HarvestReport
@@ -296,6 +297,9 @@ def wiki_index(
     typer.echo(f"Attributes         : {report.attributes}")
     typer.echo(f"Unresolved targets : {report.unresolved_targets}")
     typer.echo(f"Written to         : {report.sink_location or '(nothing kept)'}")
+
+
+register_play(app)
 
 
 def main() -> None:
