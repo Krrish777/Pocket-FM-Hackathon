@@ -8,6 +8,7 @@ It runs against a real on-disk store with a real restart in the middle, because 
 survives inside one warm process is not knowledge that survives a demo.
 """
 
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -22,6 +23,7 @@ from story_engine.domain.enums import AssertionMode, FactStatus, PresenceGrade
 from story_engine.domain.models import AUDIENCE, Fact, Provenance
 from story_engine.domain.models.canon import Awareness, Presence
 from story_engine.domain.models.play import ChoiceOption, Consequence
+from story_engine.ports.llm import Generation, LLMPort
 from story_engine.services.playthrough import (
     PlaythroughService,
     UnknownChoiceError,
@@ -160,6 +162,68 @@ def _service(db: Path) -> PlaythroughService:
     )
 
 
+_PROTAGONIST_LINE = re.compile(r"point of view of (?P<name>.+?)\.$", re.MULTILINE)
+"""The same structural marker `adapters/outbound/scripted_llm.py`'s own `_PROTAGONIST` regex
+relies on: present verbatim in every `render_scene` prompt's opening line, regardless of which
+facts or options it carries. Used here only to label a recorded prompt by whose view it was
+rendered for — the leak assertion below is a plain substring search over the recorded text."""
+
+
+class _RecordingLLM:
+    """Wraps a real `LLMPort`, recording the exact prompt string sent to `generate`.
+
+    This is the independent oracle Task 8 requires: it reads the literal text handed to the
+    model — the artifact that actually reaches it — rather than re-deriving visibility from
+    `is_visible`/`visible_to`/`Citation`, which is what the assertions below this class already
+    do (and which the task brief flags as a tautological oracle: it verifies the guard by
+    consulting the guard's own output). Delegates unchanged to the wrapped LLM, so every other
+    behaviour of `ScriptedLLM` — composing prose, answering intent JSON — is untouched.
+    """
+
+    def __init__(self, inner: LLMPort) -> None:
+        self._inner = inner
+        self.prompts_by_protagonist: dict[str, list[str]] = {}
+
+    def generate(
+        self,
+        *,
+        messages: list[dict[str, str]],
+        model: str,
+        max_tokens: int,
+        temperature: float,
+        idempotency_key: str | None = None,
+    ) -> Generation:
+        prompt = messages[-1]["content"] if messages else ""
+        match = _PROTAGONIST_LINE.search(prompt)
+        if match is not None:
+            self.prompts_by_protagonist.setdefault(match.group("name"), []).append(
+                prompt
+            )
+        return self._inner.generate(
+            messages=messages,
+            model=model,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            idempotency_key=idempotency_key,
+        )
+
+
+def _service_with_recorder(db: Path) -> tuple[PlaythroughService, _RecordingLLM]:
+    """Identical to `_service`, except its narration LLM is wrapped by `_RecordingLLM`."""
+    engine = create_engine(f"sqlite:///{db}")
+    SQLModel.metadata.create_all(engine)
+    store = SqliteCanonStore(engine)
+    recorder = _RecordingLLM(ScriptedLLM())
+    service = PlaythroughService(
+        store=store,
+        memory=WorkingMemory(store),
+        oracle=_oracle(),
+        llm=recorder,
+        prompts=FilePromptStore("prompts"),
+    )
+    return service, recorder
+
+
 def _can_see(store: SqliteCanonStore, knower: str, chapter: int, fact_id: str) -> bool:
     """Whether ONE specific fact is visible to `knower` at `chapter`.
 
@@ -183,7 +247,7 @@ def test_a_five_choice_run_compounds_and_replays_as_another_character(
     db = tmp_path / "canon.db"
     _store(db).append(_secret())
 
-    service = _service(db)
+    service, recorder = _service_with_recorder(db)
     run = service.begin(fork_id=FORK, protagonist="dexter", chapter=1)
 
     assert run.turns[0].scene, "the opening beat must render"
@@ -243,6 +307,26 @@ def test_a_five_choice_run_compounds_and_replays_as_another_character(
         citation.fact_id for turn in run.turns for citation in turn.citations
     }
     assert SECRET_ID in dexter_sees, "Dexter's own run should cite what he knows"
+
+    # --- the independent oracle: read the ACTUAL rendered prompt string, not the citation
+    # list above (which is the guard's own output — asserting on it verifies the guard by
+    # consulting the guard, and would keep passing even if the guard were wrong). This reads
+    # the literal text handed to `LLMPort.generate`, the artifact that actually reaches the
+    # model, and does a plain substring search for the secret's own words.
+    secret_literal = _secret().object_literal
+    dexter_prompts = recorder.prompts_by_protagonist.get("dexter", [])
+    deb_prompts = recorder.prompts_by_protagonist.get("deb", [])
+    assert dexter_prompts, "Dexter's own renders must have gone through the recorder"
+    assert deb_prompts, "Deborah's replay renders must have gone through the recorder"
+    assert any(secret_literal in prompt for prompt in dexter_prompts), (
+        "sanity check on the oracle itself: Dexter's OWN rendered prompt must contain what "
+        "he knows, or this test would trivially pass by never seeing the secret at all"
+    )
+    assert not any(secret_literal in prompt for prompt in deb_prompts), (
+        "the secret's literal text must never enter the prompt assembled for Deborah — "
+        "checked on the rendered string itself, independent of the citation-based assertion "
+        "above"
+    )
 
 
 def test_the_receipt_resolves_to_the_novel(tmp_path: Path) -> None:
