@@ -11,6 +11,7 @@ from story_engine.services.playthrough import PlaythroughError, UnknownChoiceErr
 from story_engine.shared.errors import (
     BudgetExceededError,
     ContinuityError,
+    NoIntentMatchError,
     PlaythroughNotFoundError,
     PromptError,
     StoryEngineError,
@@ -29,6 +30,7 @@ _STATUS: dict[type[StoryEngineError], int] = {
     PlaythroughNotFoundError: 404,
     UnknownChoiceError: 422,
     PlaythroughError: 422,
+    NoIntentMatchError: 422,
 }
 
 
@@ -37,10 +39,14 @@ async def _handle(request: Request, exc: Exception) -> JSONResponse:
     # narrow explicitly so the status lookup is type-safe and any stray error falls through to 500.
     status = _STATUS.get(type(exc), 500) if isinstance(exc, StoryEngineError) else 500
     code = getattr(exc, "code", "error")
-    return JSONResponse(
-        status_code=status,
-        content={"error": {"code": code, "message": str(exc)}},
-    )
+    body: dict[str, object] = {"code": code, "message": str(exc)}
+    # `context` is the only channel structured detail (e.g. `NoIntentMatchError`'s offered option
+    # labels) can reach the client through this ONE handler — omitted entirely when empty so every
+    # existing error's envelope shape is unchanged.
+    context = getattr(exc, "context", None)
+    if context:
+        body["context"] = context
+    return JSONResponse(status_code=status, content={"error": body})
 
 
 def register_exception_handlers(app: FastAPI) -> None:

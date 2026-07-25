@@ -19,14 +19,17 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from story_engine.adapters.outbound.file_prompt_store import FilePromptStore
 from story_engine.api.app import create_app
+from story_engine.api.errors import register_exception_handlers
 from story_engine.bootstrap import Container, build_container
 from story_engine.config.settings import Settings
 from story_engine.ports.llm import Generation
 from story_engine.services.intent_router import IntentRouter
+from story_engine.services.playthrough import UnknownChoiceError
 
 pytestmark = pytest.mark.e2e
 
@@ -183,6 +186,59 @@ def test_full_playthrough_sequence_advances_and_replay_changes_withheld_count(
     )
 
 
+class _NoMatchLLM:
+    """A fake `LLMPort` that always reports no confident intent match."""
+
+    def generate(
+        self,
+        *,
+        messages: list[dict[str, str]],
+        model: str,
+        max_tokens: int,
+        temperature: float,
+        idempotency_key: str | None = None,
+    ) -> Generation:
+        payload = {"choice_id": None, "confidence": 0.0, "reasoning": "no match"}
+        return Generation(
+            output=json.dumps(payload),
+            model="test-fixture",
+            prompt_tokens=0,
+            completion_tokens=0,
+            cost_usd=0.0,
+        )
+
+
+def _app_with_unknown_choice_route() -> FastAPI:
+    """A minimal app, sharing the real `api/errors.py` handler, whose one route raises
+    `UnknownChoiceError` directly.
+
+    `UnknownChoiceError` is not reachable through `/act`'s normal contract — `IntentRouter.resolve`
+    only ever returns a `choice_id` drawn from the currently offered options, so `advance` never
+    sees an unoffered one in practice (see `tests/e2e/test_playthrough_e2e.py` for the domain-level
+    coverage that it IS raised and refused). This app exists solely to prove the error, once raised,
+    serialises through the SAME `_STATUS`-driven handler and envelope as everything else.
+    """
+    app = FastAPI()
+    register_exception_handlers(app)
+
+    @app.get("/trigger-unknown-choice")
+    def _trigger() -> None:
+        raise UnknownChoiceError("choice_id 'nope' was not offered on this turn")
+
+    return app
+
+
+def _swap_intent_router(app_client: TestClient, llm: object) -> None:
+    """Replace the booted container's `intent_router` in place, keeping every other wire."""
+    router = IntentRouter(
+        llm=llm, prompts=FilePromptStore("prompts"), model="test-fixture"
+    )  # type: ignore[arg-type]
+    app_client.app.state.container = replace(  # type: ignore[attr-defined]
+        app_client.app.state.container,  # type: ignore[attr-defined]
+        intent_router=router,
+    )
+
+
 @pytest.mark.e2e
 def test_act_with_no_confident_intent_match_returns_422_and_does_not_advance(
     app_client: TestClient,
@@ -191,46 +247,55 @@ def test_act_with_no_confident_intent_match_returns_422_and_does_not_advance(
     play_resp = app_client.post("/api/v1/play", json={"character_id": "dexter"})
     run_id = play_resp.json()["run_id"]
 
-    class _NoMatchLLM:
-        def generate(
-            self,
-            *,
-            messages: list[dict[str, str]],
-            model: str,
-            max_tokens: int,
-            temperature: float,
-            idempotency_key: str | None = None,
-        ) -> Generation:
-            payload = {"choice_id": None, "confidence": 0.0, "reasoning": "no match"}
-            return Generation(
-                output=json.dumps(payload),
-                model="test-fixture",
-                prompt_tokens=0,
-                completion_tokens=0,
-                cost_usd=0.0,
-            )
-
-    no_match_router = IntentRouter(
-        llm=_NoMatchLLM(), prompts=FilePromptStore("prompts"), model="test-fixture"
-    )
-    app_client.app.state.container = replace(  # type: ignore[attr-defined]
-        app_client.app.state.container,
-        intent_router=no_match_router,  # type: ignore[attr-defined]
-    )
+    _swap_intent_router(app_client, _NoMatchLLM())
 
     act_resp = app_client.post(
         f"/api/v1/play/{run_id}/act", json={"action": "do something nonsensical"}
     )
 
     assert act_resp.status_code == 422
-    detail = act_resp.json()["detail"]
-    assert detail["code"] == "no_intent_match"
-    assert isinstance(detail["options"], list) and detail["options"]
+    error = act_resp.json()["error"]
+    assert error["code"] == "no_intent_match"
+    options = error["context"]["options"]
+    assert isinstance(options, list) and options
 
     unchanged = app_client.get(f"/api/v1/play/{run_id}")
     assert unchanged.json()["turn"]["index"] == 0, (
         "an unmatched action must not advance the run"
     )
+
+
+@pytest.mark.e2e
+def test_both_act_422_causes_share_one_error_envelope_shape(
+    app_client: TestClient,
+) -> None:
+    """`/act` has two distinct causes for a 422 (`no_intent_match`, `unknown_choice`), and a UI
+    can only handle both reliably if they share one envelope. Both must expose their `code` at
+    `error.code` — never one at `error.code` and the other at a bare `detail.code`."""
+    play_resp = app_client.post("/api/v1/play", json={"character_id": "dexter"})
+    run_id = play_resp.json()["run_id"]
+
+    _swap_intent_router(app_client, _NoMatchLLM())
+    no_match_resp = app_client.post(
+        f"/api/v1/play/{run_id}/act", json={"action": "do something nonsensical"}
+    )
+    assert no_match_resp.status_code == 422
+    no_match_body = no_match_resp.json()
+    assert "detail" not in no_match_body, (
+        "no_intent_match must not serialise as a bare HTTPException {'detail': ...} envelope"
+    )
+    assert no_match_body["error"]["code"] == "no_intent_match"
+
+    unknown_choice_client = TestClient(_app_with_unknown_choice_route())
+    unknown_choice_resp = unknown_choice_client.get("/trigger-unknown-choice")
+    assert unknown_choice_resp.status_code == 422
+    unknown_choice_body = unknown_choice_resp.json()
+    assert unknown_choice_body["error"]["code"] == "unknown_choice"
+
+    # Both errors expose their machine-readable code at the SAME JSON path.
+    assert set(no_match_body.keys()) == set(unknown_choice_body.keys()) == {"error"}
+    assert "code" in no_match_body["error"]
+    assert "code" in unknown_choice_body["error"]
 
 
 @pytest.mark.e2e

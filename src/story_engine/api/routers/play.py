@@ -13,7 +13,7 @@ maps the result to response DTOs.
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Request
 
 from story_engine.api.schemas import (
     ActRequest,
@@ -33,7 +33,8 @@ from story_engine.domain.models.canon import ChapterIndex
 from story_engine.domain.models.play import ChoiceOption, Citation, Playthrough, Turn
 from story_engine.domain.reactions import CharacterDirective, derive_directives
 from story_engine.resources.dexter_demo import CAST, FORK_ID
-from story_engine.shared.errors import PlaythroughNotFoundError
+from story_engine.services.playthrough import PlaythroughError
+from story_engine.shared.errors import NoIntentMatchError, PlaythroughNotFoundError
 
 router = APIRouter(tags=["play"])
 
@@ -91,13 +92,9 @@ def act(run_id: str, body: ActRequest, container: ContainerDep) -> ActResponse:
         action=body.action, options=current.choices, protagonist=run.protagonist
     )
     if resolved.choice_id is None:
-        raise HTTPException(
-            status_code=422,
-            detail={
-                "code": "no_intent_match",
-                "message": resolved.reasoning,
-                "options": [choice.label for choice in current.choices],
-            },
+        raise NoIntentMatchError(
+            resolved.reasoning,
+            options=tuple(choice.label for choice in current.choices),
         )
 
     interpreted_as = _label_for(current.choices, resolved.choice_id)
@@ -150,10 +147,17 @@ def _label_for(choices: tuple[ChoiceOption, ...], choice_id: str) -> str:
     """The label of the option `IntentRouter.resolve` matched.
 
     `IntentRouter.resolve` only ever returns a `choice_id` drawn verbatim from the options it was
-    given (see `services/intent_router.py`), so `choice_id` is always among `choices` here — a
-    `StopIteration` would mean that guarantee broke, which is a bug to surface loudly, not mask.
+    given (see `services/intent_router.py`), so `choice_id` is always among `choices` here. Raised
+    loudly, with the diagnostic, rather than left as a bare `StopIteration` if that guarantee ever
+    breaks — an opaque `StopIteration` would surface to the client as an undiagnosable 500.
     """
-    return next(choice.label for choice in choices if choice.id == choice_id)
+    for choice in choices:
+        if choice.id == choice_id:
+            return choice.label
+    raise PlaythroughError(
+        f"resolved choice_id {choice_id!r} was not among the offered ids "
+        f"{[choice.id for choice in choices]!r} — IntentRouter's no-invented-id contract broke"
+    )
 
 
 def _reactions(

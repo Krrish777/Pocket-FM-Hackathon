@@ -48,6 +48,25 @@ class PlaythroughNotFoundError(DomainError):
     code = "playthrough_not_found"
 
 
+class NoIntentMatchError(DomainError):
+    """The player's typed action did not confidently match any option currently on offer.
+
+    A sibling of `PlaythroughNotFoundError` here — not beside `PlaythroughError` in
+    `services/playthrough.py` — because this is not a turn-loop state-transition failure: no
+    consequence was ever computed and the turn was never advanced. It exists so this outcome flows
+    through the one `api/errors.py` handler and serialises as `{"error": {...}}` like every other
+    error, instead of as a bare `HTTPException`'s `{"detail": {...}}` — a second, incompatible shape
+    for the same 422 status. `options` (the offered labels) travels in `context` so a client can
+    still re-prompt the player from the single error envelope.
+    """
+
+    code = "no_intent_match"
+
+    def __init__(self, message: str, *, options: tuple[str, ...]) -> None:
+        super().__init__(message, context={"options": list(options)})
+        self.options = options
+
+
 # --- generation / infrastructure -------------------------------------------------------------
 class GenerationError(StoryEngineError):
     """An LLM generation failed or produced unusable output."""
