@@ -1,8 +1,8 @@
 {
-  "$schema_note": "Machine source of truth for work. Each feature is {id, description, verification, passes, evidence}. passes starts false and is flipped to true ONLY by its verification command succeeding \u2014 do not hand-edit. One feature active at a time (WIP=1). JSON on purpose so it is not casually rewritten. See CLAUDE.md > Feature List Rules.",
+  "$schema_note": "Machine source of truth for work. Each feature is {id, description, verification, passes, evidence}. passes starts false and is flipped to true ONLY by its verification command succeeding — do not hand-edit. One feature active at a time (WIP=1). JSON on purpose so it is not casually rewritten. See CLAUDE.md > Feature List Rules.",
   "meta": {
     "phase": "product",
-    "note": "Initialization + hardening phases are complete. Product features (M*/S*) are derived from project_context.md \u00a77 \u2014 that file is the single source of truth for scope and definitions of done. M-features are MUST; S-features are SHOULD and must not be started until every M-feature passes.",
+    "note": "Initialization + hardening phases are complete. Product features (M*/S*) are derived from project_context.md §7 — that file is the single source of truth for scope and definitions of done. M-features are MUST; S-features are SHOULD and must not be started until every M-feature passes.",
     "spec": "project_context.md",
     "decision_provenance": "docs/2026-07-25-product-definition-session.md"
   },
@@ -33,14 +33,14 @@
       "description": "`make check` runs ruff + mypy + pytest with at least one passing example test",
       "verification": "make check",
       "passes": true,
-      "evidence": "2026-07-25 (s5): re-verified GREEN, exit code 0, 7 passed. Fix this session: added `.claude/worktrees` to ruff extend-exclude \u2014 parallel-session worktrees are separate checkouts that run their own gate; linting them from the parent made our gate fail on their in-progress code (RUF001 in reddit-fanfic-scraper)."
+      "evidence": "2026-07-25 (s5): re-verified GREEN, exit code 0, 7 passed. Fix this session: added `.claude/worktrees` to ruff extend-exclude — parallel-session worktrees are separate checkouts that run their own gate; linting them from the parent made our gate fail on their in-progress code (RUF001 in reddit-fanfic-scraper)."
     },
     {
       "id": "INIT-05",
       "description": "`./init.sh` runs the session startup path (env check + quick smoke) without error",
       "verification": "bash init.sh",
       "passes": true,
-      "evidence": "2026-07-24: `bash init.sh` exits 0 \u2014 env check + consistency gate (ruff/mypy/pytest) all green."
+      "evidence": "2026-07-24: `bash init.sh` exits 0 — env check + consistency gate (ruff/mypy/pytest) all green."
     },
     {
       "id": "HARDEN-01",
@@ -72,77 +72,133 @@
     },
     {
       "id": "M8",
-      "description": "Uniform character state schema \u2014 all 5 cast members share one identical state structure (knowledge set over shared world state + traits + goals); no PC/NPC asymmetry in storage; renderer takes a character as a parameter. See project_context.md \u00a74.4.",
+      "description": "Uniform character state schema — all 5 cast members share one identical state structure (knowledge set over shared world state + traits + goals); no PC/NPC asymmetry in storage; renderer takes a character as a parameter. See project_context.md §4.4.",
       "verification": "uv run pytest -m unit -k character_state_schema -q",
       "passes": false,
-      "evidence": "NOT STARTED. BUILD THIS FIRST \u2014 it is the only decision in the product that is expensive to retrofit, and M5/S3 both depend on it."
+      "evidence": "SUBSTRATE BUILT AND HARDENED (KB-01, KB-07; Session D). One world state as tri-temporal Fact rows; per-character views via Fact.knower_scope, which now carries a PER-KNOWER ACQUISITION CHAPTER (tuple[Awareness, ...]) instead of a timeless set — before that fix every cast member resolved to an IDENTICAL packet, so this feature was not merely incomplete, it was unbuildable. WorkingMemory.assemble() takes the character as a PARAMETER (no PC/NPC asymmetry anywhere). Proven by tests/e2e/test_product_flow_e2e.py::test_any_cast_member_can_be_selected_and_gets_a_packet. STILL NOT PASSING: no traits/goals on the character record, and the named verification test does not exist (see AUD-M3 — `-m unit` selects nothing, so this command can never pass as written)."
     },
     {
       "id": "M5",
-      "description": "Per-character epistemic memory \u2014 one world state, 5 filtered views; a character cannot act on facts they did not witness, were not told, and could not infer. See project_context.md \u00a75.3.",
+      "description": "Per-character epistemic memory — one world state, 5 filtered views; a character cannot act on facts they did not witness, were not told, and could not infer. See project_context.md §5.3.",
       "verification": "uv run pytest -m unit -k epistemic -q",
       "passes": false,
-      "evidence": "NOT STARTED. Depends on M8. Acceptance condition per project_context.md \u00a74.2: a character who did not learn a fact at step 4 must still not know it at step N for all N > 4."
+      "evidence": "SUBSTRATE BUILT AND TESTED (KB-04, KB-07, KB-08; hardened in Session D). store.visible_to(fork, knower, chapter) now gates each knower on THEIR OWN learned-at chapter, so 'Doakes suspects at ch6, the audience learns at ch20' is representable — it was not before. Leak suite asserts by SET EQUALITY across cutoffs; graph, working memory AND the vector lane all route through ONE guard predicate (domain.models.canon.is_visible) rather than mirroring it. GAP TO CLOSE: nothing yet DERIVES knower_scope from Scene.witnesses — that propagation step is what makes §4.2's compounding condition hold across turns. §5.3's three channels (witnessed/told/inferred) are still one set."
     },
     {
       "id": "M1",
-      "description": "Knowledge base extracted from the Dexter novels \u2014 facts stored with provenance sufficient to produce a citation",
+      "description": "Knowledge base extracted from the Dexter novels — facts stored with provenance sufficient to produce a citation",
       "verification": "uv run pytest -m integration -k canon_kb -q",
       "passes": false,
-      "evidence": "NOT STARTED. Ingestion is EXT-1 (parallel session) \u2014 see project_context.md \u00a79. Blocked on OD-3 (output contract undefined) and OD-2 (novel vs screen canon)."
+      "evidence": "STORE BUILT AND EMPTY. The KB itself exists and is tested (KB-07): Provenance carries source_id + chapter + char span + verbatim fragment, which is sufficient to render the receipt. What is missing is DATA — ingestion (EXT-1) is unbuilt. Blocked on OD-3 (output contract) and OD-2 (novel vs screen canon). UNBLOCK PATH: seed 20-40 hand-authored facts (~1h) and the agent loop can start against a real store immediately."
+    },
+    {
+      "id": "KB-01",
+      "description": "Canon Kernel domain schema — tri-temporal facts (story/telling/record time), forks, entities, scenes with presence grades, commitments, flags, plus pure invariant predicates",
+      "verification": "uv run pytest tests/unit/domain -q",
+      "passes": true,
+      "evidence": "2026-07-25 (s6): M0 built across 5 TDD tasks, each independently reviewed (spec-compliance + quality), plus a whole-branch review on the most capable model. Then hardened: tz-aware datetimes enforced, record-time ordering validated, revealed_at/AUDIENCE coupling closed."
+    },
+    {
+      "id": "KB-07",
+      "description": "Canon store — CanonStorePort + SQLite adapter with lossless Fact<->Row mapping, tri-temporal as-of queries, and ATOMIC supersession (close old window + insert replacement in one transaction)",
+      "verification": "uv run pytest tests/integration/test_canon_store_sqlite.py -q",
+      "passes": true,
+      "evidence": "2026-07-25 (s6): round-trip asserts full-model equality (not identity), None-vs-empty-frozenset distinction preserved across the JSON boundary, and durability proven by closing the engine and reopening against the same file."
+    },
+    {
+      "id": "KB-09",
+      "description": "Temporal invariants + spoiler-guard leak suite — set-equality assertions across cutoffs, scope leaks, and the severity asymmetry (a leak fails the build; over-withholding is a reported metric)",
+      "verification": "uv run pytest tests/integration/test_canon_invariants.py -q",
+      "passes": true,
+      "evidence": "2026-07-25 (s6): leak assertions use SET EQUALITY, not spot checks — spot checks only catch leaks you already thought of. Parametrized across cutoffs. Caught and fixed a real bug: superseded facts were being hidden at every chapter, including ones inside their own valid window."
+    },
+    {
+      "id": "KB-10",
+      "description": "Graph projection layer — derived adjacency over canon facts with multi-hop traversal, cycle-safe BFS, and relationship diff between two story-time positions",
+      "verification": "uv run pytest tests/unit/domain/test_graph.py -q",
+      "passes": true,
+      "evidence": "2026-07-25 (s6): guard applied at CONSTRUCTION inside from_facts(), not left to callers — an unguarded graph beside a guarded store is a spoiler side-channel, and traversal is exactly how you would reach a withheld fact. No graph database: a service dependency would break the offline constraint."
+    },
+    {
+      "id": "KB-11",
+      "description": "Agent working memory — bounded, deterministic per-character packet (visible facts + its own guarded graph + a withheld count)",
+      "verification": "uv run pytest tests/unit/services/test_working_memory.py -q",
+      "passes": true,
+      "evidence": "2026-07-25 (s6): deterministic assembly (identical inputs -> identical packet), focus entities survive the budget on BOTH fact endpoints, and assembly reads only from store.visible_to() so there is no second filtering path to leak through."
+    },
+    {
+      "id": "KB-12",
+      "description": "Vector store — semantic recall with the spoiler guard applied as a pre-filter, plus a dependency-free deterministic embedder behind an EmbedderPort",
+      "verification": "uv run pytest tests/integration/test_vector_store_sqlite.py -q",
+      "passes": true,
+      "evidence": "2026-07-25 (s6): guard filters BEFORE ranking — a post-filter on top-k silently returns fewer than k and hides the leak in the gap. Offline hashing embedder is the demo-safe default; Databricks Vector Search plugs in as a second adapter behind the same port (Delta Sync + HYBRID search + server-side filters)."
+    },
+    {
+      "id": "KB-08",
+      "description": "End-to-end memory storage — the full hybrid (canon store + graph + working memory) driven against a real on-disk database across TWO restarts, with the guard asserted at every layer",
+      "verification": "uv run pytest tests/e2e/test_memory_storage_e2e.py tests/e2e/test_hybrid_kb_e2e.py -q",
+      "passes": true,
+      "evidence": "2026-07-25 (s6): ingest -> close engine -> reopen -> guard before and after the reveal -> epistemic scope -> supersede -> reopen again. Never :memory:. Bar set deliberately above the reference implementations: Graphiti's own suite round-trips temporal edges then asserts only on uuid, and one of its search tests has no assertions at all."
+    },
+    {
+      "id": "KB-13",
+      "description": "Fork write path + knowledge propagation — create/extend a branch on a player choice, and derive knower_scope from Scene.witnesses so knowledge compounds across turns",
+      "verification": "uv run pytest tests/integration/test_fork_and_propagation.py -q",
+      "passes": false,
+      "evidence": "HALF DONE (Session D). The FORK half is built and tested: canon_fork table + register_fork/get_fork/lineage, and all_facts resolves fork -> parent -> ... -> root with a divergence cap and nearer-fork shadowing. Before this a player's branch contained their one choice and NONE of the novels. See tests/integration/test_fork_lineage.py (9 tests) and the fork beat in test_product_flow_e2e.py. The PROPAGATION half — deriving knower_scope from Scene.witnesses so knowledge compounds across turns — is NOT started, and the named verification file (test_fork_and_propagation.py) does not exist."
     },
     {
       "id": "M4",
-      "description": "Choices sourced from scraped fan-fiction (the branch oracle) \u2014 options originate from real fan-fiction divergences, not hand-authored and not freely invented by the model. See project_context.md \u00a75.2.",
+      "description": "Choices sourced from scraped fan-fiction (the branch oracle) — options originate from real fan-fiction divergences, not hand-authored and not freely invented by the model. See project_context.md §5.2.",
       "verification": "uv run pytest -m integration -k branch_oracle -q",
       "passes": false,
       "evidence": "NOT STARTED. Depends on EXT-1. Blocked on OD-3, OD-2, OD-4 (sparse coverage degradation path undefined)."
     },
     {
       "id": "M2",
-      "description": "Character selection \u2014 the player can select any of the 5 cast members (Dexter, Debra, Doakes, LaGuerta, Rita)",
+      "description": "Character selection — the player can select any of the 5 cast members (Dexter, Debra, Doakes, LaGuerta, Rita)",
       "verification": "uv run pytest -m integration -k character_select -q",
       "passes": false,
       "evidence": "NOT STARTED. Depends on M8."
     },
     {
       "id": "M3",
-      "description": "Choice-based playthrough (text) \u2014 up to 10 sequential choices, 2-4 discrete options per decision point, no free text",
+      "description": "Choice-based playthrough (text) — up to 10 sequential choices, 2-4 discrete options per decision point, no free text",
       "verification": "uv run pytest -m e2e -k playthrough -q",
       "passes": false,
-      "evidence": "NOT STARTED. Ceiling 10, rehearsed demo run >= 5 (project_context.md \u00a74.1, \u00a78)."
+      "evidence": "NOT STARTED. Ceiling 10, rehearsed demo run >= 5 (project_context.md §4.1, §8)."
     },
     {
       "id": "M6",
-      "description": "Characters react to the diverged world \u2014 per-turn state re-evaluation, turn-based, not concurrent. Single narration call per turn; state transitions deterministic in code. See project_context.md \u00a74.3, \u00a74.4.",
+      "description": "Characters react to the diverged world — per-turn state re-evaluation, turn-based, not concurrent. Single narration call per turn; state transitions deterministic in code. See project_context.md §4.3, §4.4.",
       "verification": "uv run pytest -m integration -k reaction -q",
       "passes": false,
       "evidence": "NOT STARTED. Depends on M8, M5."
     },
     {
       "id": "M7",
-      "description": "Consistency enforced with citations \u2014 'every fact is checked, and we show you the receipt'; a checked claim can display the canon fact and its source location",
+      "description": "Consistency enforced with citations — 'every fact is checked, and we show you the receipt'; a checked claim can display the canon fact and its source location",
       "verification": "uv run pytest -m integration -k citation -q",
       "passes": false,
-      "evidence": "NOT STARTED. Depends on M1 (provenance). Requires distinguishing intentional divergence from accidental contradiction (project_context.md \u00a75.5)."
+      "evidence": "NOT STARTED. Depends on M1 (provenance). Requires distinguishing intentional divergence from accidental contradiction (project_context.md §5.5)."
     },
     {
       "id": "S3",
-      "description": "SHOULD \u2014 Infinite Story Universe: replay a completed branch from another character's epistemic view (project_context.md \u00a78.1). The closing demo beat; proves M5 and Infinite Story Universe simultaneously.",
+      "description": "SHOULD — Infinite Story Universe: replay a completed branch from another character's epistemic view (project_context.md §8.1). The closing demo beat; proves M5 and Infinite Story Universe simultaneously.",
       "verification": "uv run pytest -m e2e -k replay_as_character -q",
       "passes": false,
-      "evidence": "NOT STARTED. Mechanism is near-free given M8 \u2014 only the toggle is work. DO NOT START until all M-features pass."
+      "evidence": "NOT STARTED. Mechanism is near-free given M8 — only the toggle is work. DO NOT START until all M-features pass."
     },
     {
       "id": "S2",
-      "description": "SHOULD \u2014 Ripple visualization showing the cast and what each character now believes (not abstract fact-nodes)",
+      "description": "SHOULD — Ripple visualization showing the cast and what each character now believes (not abstract fact-nodes)",
       "verification": "uv run pytest -m e2e -k ripple_view -q",
       "passes": false,
       "evidence": "NOT STARTED. DO NOT START until all M-features pass."
     },
     {
       "id": "S1",
-      "description": "SHOULD \u2014 audio narration via ElevenLabs",
+      "description": "SHOULD — audio narration via ElevenLabs",
       "verification": "uv run pytest -m integration -k narration -q",
       "passes": false,
       "evidence": "NOT STARTED. EXT-2. DO NOT START until all M-features pass."
@@ -166,7 +222,7 @@
       "description": "Harvest yield and precision are acceptable: search spreads across the alias set, ambiguous titles disambiguate, and kept works are genuinely fan fiction of the requested fandom",
       "verification": "uv run python -c \"import json,pathlib,sys; m=json.loads(pathlib.Path('data/raw/fanfic/titanic/manifest.json').read_text()); sys.exit(0 if m['story_count']>=10 and m['total_words']>=20000 else 1)\"",
       "passes": true,
-      "evidence": "2026-07-25 (s5): Titanic (movie) -> 10 works / 21 chapters / 23,830 words; Dexter (novel) -> 4 works / 13 chapters / 19,104 words. Analyst review: 6/6 Dexter and 8/8 inspected Titanic works are genuine fanfic of the right fandom; 0 disclaimer leaks corpus-wide. Fixes: round-robin alias search, Wikipedia-search title resolution ('Titanic (1997 film)' \u2014 films disambiguate by YEAR so suffix guessing could never reach it), tag-key + word-boundary alias matching, explicit-declaration rule, mature exclusion, read/vote floors, sentence-level disclaimer stripping."
+      "evidence": "2026-07-25 (s5): Titanic (movie) -> 10 works / 21 chapters / 23,830 words; Dexter (novel) -> 4 works / 13 chapters / 19,104 words. Analyst review: 6/6 Dexter and 8/8 inspected Titanic works are genuine fanfic of the right fandom; 0 disclaimer leaks corpus-wide. Fixes: round-robin alias search, Wikipedia-search title resolution ('Titanic (1997 film)' — films disambiguate by YEAR so suffix guessing could never reach it), tag-key + word-boundary alias matching, explicit-declaration rule, mature exclusion, read/vote floors, sentence-level disclaimer stripping."
     },
     {
       "id": "FANFIC-04",
@@ -187,7 +243,7 @@
       "description": "EXT-1 output contract is written down, not guessed (closes project_context.md OD-3)",
       "verification": "test -f docs/EXT-1-scraper-output-contract.md",
       "passes": true,
-      "evidence": "2026-07-25 (s5): docs/EXT-1-scraper-output-contract.md answers all four \u00a79 checkboxes, documents corpus schema 1.1 + wiki-index schema 1.0 field-by-field, states guarantees AND non-guarantees, and records the one two-way dependency: EXT-1 cannot cite a canon SCENE until the Canon Kernel exposes a resolvable moment id."
+      "evidence": "2026-07-25 (s5): docs/EXT-1-scraper-output-contract.md answers all four §9 checkboxes, documents corpus schema 1.1 + wiki-index schema 1.0 field-by-field, states guarantees AND non-guarantees, and records the one two-way dependency: EXT-1 cannot cite a canon SCENE until the Canon Kernel exposes a resolvable moment id."
     },
     {
       "id": "FANFIC-07",
@@ -201,7 +257,7 @@
       "description": "Author local sqlmodel/pytest/thin-pydantic skills modeled on the FastAPI skill structure",
       "verification": "test -e .claude/skills/sqlmodel/SKILL.md && test -e .claude/skills/pytest/SKILL.md",
       "passes": false,
-      "evidence": "DEFERRED (s2, s5) \u2014 superseded in priority by product features now that the brief has landed. Do not start before M1-M8."
+      "evidence": "DEFERRED (s2, s5) — superseded in priority by product features now that the brief has landed. Do not start before M1-M8."
     }
   ]
 }

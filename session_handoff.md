@@ -1,8 +1,68 @@
 # Session Handoff
 
 > The single per-session **clock-out** note. At session start read this first, then `PROGRESS.md` and
-> `DECISIONS.md`. Three sessions have clocked out here: **Session A** (product definition), **Session B**
-> (EXT-1 scraper build), and **Session C** (EXT-1 IV&V audit). **Session C is the most recent.**
+> `DECISIONS.md`. Four sessions have clocked out here: **Session A** (product definition), **Session B**
+> (EXT-1 scraper build), **Session C** (EXT-1 IV&V audit), and **Session D** (knowledge-base IV&V audit
+> + remediation). **Session D is the most recent.**
+
+---
+
+## Session D — 2026-07-25 (IV&V audit of the KNOWLEDGE BASE → two product blockers fixed)
+
+**Branch:** `worktree-knowledge-base`. Independent verification pass over the knowledge base, then
+remediation of the defects that blocked the product. Eight defects were reproduced with executable
+probes **while `make check` was green**.
+
+### The one thing to read next
+**`tests/e2e/test_product_flow_e2e.py`** — it walks the whole product scenario (character select ->
+per-character memory -> citation receipt -> guarded semantic recall -> player choice forks the story
+-> replay as another character -> restart) against a real on-disk database. It is written against
+`project_context.md` rather than against the implementation, which is why it found what the existing
+green suite did not.
+
+### The two PRODUCT blockers, both fixed
+1. **Per-knower acquisition time.** `Fact.knower_scope` was a timeless `frozenset[str]`, and
+   `is_visible_to` gated EVERY knower on the audience's `revealed_at` — so a character could not know
+   anything before the audience did. All five cast members received identical packets; M5 and S3 were
+   unbuildable. Now `tuple[Awareness, ...]` (knower + the chapter they learned it) with `AUDIENCE` as
+   an ordinary knower. Call sites pass a `{knower: chapter}` mapping.
+2. **Fork lineage.** `fork_id` was an opaque partition key, so a player's branch held their one choice
+   and none of the novels. Added the `canon_fork` table plus `register_fork`/`get_fork`/`lineage`;
+   `all_facts` resolves fork -> parent -> ... -> root with a divergence cap and nearer-fork shadowing.
+   An unregistered fork still resolves as a root, so existing callers are unaffected.
+
+### Critical defects fixed in the same code paths
+- The vector lane ignored `FactStatus`, so a QUARANTINED fact was retrievable by similarity while the
+  canon store correctly hid it. There were **two** implementations of one security predicate and the
+  copy had dropped a clause; it is now one function, `domain.models.canon.is_visible`, shared by
+  `Fact` and the vector store.
+- `supersede()` skipped every domain validator and could write a row that made the whole fork
+  permanently unreadable, with no delete path to repair it. It re-validates through `Fact` now.
+- Double supersession left two live successors (violating documented I-2/I-8) — now rejected.
+- `as_of()` had no tie-break on equal `valid_from` — now a total order.
+- Vector `add()` was not idempotent; `remove()` did not exist.
+
+### State
+`make check` GREEN. KB tests 110 -> 138 before merging main. Every fix above carries a regression test
+that names the defect it prevents.
+
+### Next step
+**`AUD-H5` is the highest-value open item: the KB still has zero production callers.** `bootstrap.py`
+wires none of `SqliteCanonStore` / `SqliteVectorStore` / `WorkingMemory` / `HashingEmbedder`, and no
+API route or CLI command reaches canon. `AUD-H1` (canon-vector sync) is now cheap because
+`VectorStorePort.remove()` exists; only the ingest service pairing the two writes is missing.
+
+### Known gaps, stated plainly
+- `CanonEntity` / `Scene` / `Presence` / `Commitment` / `Flag` / `Source` still have no persistence
+  and no source consumers.
+- `knower_scope` is populated by hand; nothing derives it from `Scene.witnesses` yet (KB-13's
+  propagation half), so knowledge does not compound across turns on its own.
+- Test-quality items `AUD-T1`, `AUD-T2`, `AUD-T5`, `AUD-T7`, `AUD-T11`, `AUD-T13` are deferred, not
+  done — the flagship leak test still uses a tautological oracle, and 4 of the 9 documented
+  invariants (I-6, I-7, I-8, I-9) have no test. Do not read a green gate as full assurance.
+- **Note for the EXT-1 hand-off:** Session C reports every `premise_group` has `size: 1`. The KB side
+  is unaffected — forks do not assume multi-member groups — but M4's branch-oracle work should read
+  that note first.
 
 ---
 
@@ -141,7 +201,7 @@ and M5 + S3 both depend on it. Spec: `project_context.md` §4.4.
 
 ---
 
-## Session B — 2026-07-25 (EXT-1: fan-fiction scraper → Branch Oracle) ← MOST RECENT
+## Session B — 2026-07-25 (EXT-1: fan-fiction scraper → Branch Oracle)
 
 **Branch:** `worktree-reddit-fanfic-scraper` · worktree `.claude/worktrees/reddit-fanfic-scraper`
 **Commit:** `d51ed29`, rebased onto main (1 ahead, 0 behind). **NOT pushed. NOT merged to main.**

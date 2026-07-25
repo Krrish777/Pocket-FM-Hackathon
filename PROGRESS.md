@@ -12,6 +12,25 @@
   actually learned. Track: P1 Story Time Machine + Infinite Story Universe.
 - **Runway:** 24–36h, 2–4 people. Parallel sessions are live in `.claude/worktrees/`
   (`reddit-fanfic-scraper` = the EXT-1 ingestion dependency; `knowledge-base`).
+- **Verification (knowledge base):** `make check` **GREEN**. An IV&V audit (Session D) reproduced 8
+  defects with executable probes *while the gate was green*; the two product blockers (per-knower
+  acquisition time, fork lineage) and the CRITICAL guard/write-path defects are fixed with regression
+  tests. KB tests **110 → 138**. Remaining findings: `BACKLOG.md` § IV&V AUDIT.
+- **Superseded note (kept for history):** `make check` was **GREEN — 110 passing** (70 unit, 40 integration + e2e against REAL
+  on-disk SQLite). INIT-01…05 + HARDEN-01…04 pass; HARDEN-05 deferred.
+- **🧠 THE KNOWLEDGE BASE IS BUILT AND END-TO-END TESTED** (branch `worktree-knowledge-base`, rebased onto
+  main 2026-07-25). Three stores over one tri-temporal fact model: **canon store** (SQLite, atomic
+  supersession, as-of queries) · **graph projection** (multi-hop traversal, relationship diff) ·
+  **vector store** (semantic recall, guard applied as a PRE-filter) · plus **agent working memory**
+  (bounded, deterministic, per-character). Spoiler guard asserted at every layer; durability proven by
+  closing and reopening the database twice. `KB-01`, `KB-07`…`KB-12` all `passes:true`, each verification
+  command re-run individually.
+- **What the KB still owes the product:** it is **EMPTY** (no ingestion — that is EXT-1), and `KB-13`
+  (fork write path + deriving `knower_scope` from `Scene.witnesses`) is not started. Those two are the only
+  KB items the agent loop actually needs. **Seeding 20–40 hand-authored facts (~1h) unblocks the loop today**
+  — the API is stable and tested, so an agent built against seeded data works unchanged when ingestion lands.
+- **Product features M1–M8 / S1–S3 remain `passes:false`** — but M5 and M8's *storage substrate* now exists
+  and is tested; see their `evidence` fields for exactly what is done and what is not.
 - **EXT-1 (scraper branch) STATUS: delivered, INDEPENDENTLY AUDITED, and closed for the hackathon.**
   `FANFIC-01…07` all pass — fandom-targeted scraper, Branch Oracle (canon decision points with 2–4
   options), OD-2 canon discriminator, a written EXT-1 contract, and (session 6) an IV&V pass that found

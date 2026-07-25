@@ -49,3 +49,21 @@ the unit path).
 - **BLOCKED until the brief:** real dataset creation waits on (a) the hackathon brief defining the
   engine's input→output contract and (b) a deterministic offline LLM path (today `StubLLM` raises by
   design). Until then: scaffold `metrics.py` + document the `deepeval generate` command only.
+
+## Testing the Canon Kernel (tri-temporal memory storage)
+**Full standard: `tests/README.md` § "Testing the Canon Kernel".** The short version, because these are
+the mistakes that get made:
+
+- **Assert every load-bearing field after a real save-and-reload.** We read Graphiti's suite: it builds
+  edges carrying `valid_at`/`invalid_at`/`expired_at`, reloads them, then asserts only on `uuid` — and one
+  of its search tests has no assertions at all. Both pass while the temporal semantics go unverified.
+  A test that checks identity, or only that nothing raised, is a smoke test and does not count toward done.
+- **Never `:memory:` for store tests.** Real file via `tmp_path`, and **close then reopen** — a store that
+  only works while the process is warm passes every test that skips the reopen.
+- **Nine invariants** (I-1…I-9 in `tests/README.md`): one-live-fact-per-key, atomic + append-only
+  supersession, as-of correctness on a **2D grid** (story time × record time, not a line),
+  projection-equals-replay, idempotent replay, no-lost-update, monotonic record time.
+- **The spoiler guard is access control.** Assert **set equality** on the returned ids, never spot checks.
+  Encode the asymmetry: a **leak is a hard build failure**; over-withholding is a reported metric only.
+- **Property-based testing** (`Hypothesis RuleBasedStateMachine` + in-memory oracle) earns its place on the
+  mutation-sequence surface only — append/supersede/query-as-of. Not for schema validation; Pydantic has it.
