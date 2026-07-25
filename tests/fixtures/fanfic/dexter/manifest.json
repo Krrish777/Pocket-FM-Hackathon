@@ -1,0 +1,68 @@
+{
+  "schema_version": "1.2",
+  "fandom": "Dexter",
+  "harvested_at": "2026-07-25T00:00:00+00:00",
+  "story_count": 2,
+  "chapter_count": 4,
+  "total_words": 4000,
+  "sources": ["wattpad"],
+  "corpus_file": "stories.jsonl",
+  "ordering": "harvest_order",
+  "prose_quality": null,
+  "premise_groups": [
+    {
+      "key": "reader_insert:dexter",
+      "label": "Reader-insert romance with Dexter",
+      "size": 1,
+      "members": ["wattpad:390229723"],
+      "member_titles": ["New Face & New Love"]
+    },
+    {
+      "key": "unclassified",
+      "label": "No premise detected in the blurb",
+      "size": 1,
+      "members": ["wattpad:1111111"],
+      "member_titles": ["A Dexter Story"]
+    }
+  ],
+  "branch_points": [
+    {
+      "key": "reader_insert:dexter",
+      "decision_point": "Whether a newcomer enters Dexter's life",
+      "tropes": ["reader_insert"],
+      "focal_entities": ["dexter"],
+      "support": 1,
+      "options": [
+        {
+          "label": "Let canon stand — no newcomer arrives",
+          "is_canon": true,
+          "support": 0,
+          "sources": []
+        },
+        {
+          "label": "A newcomer becomes close to Dexter, against a rival claim",
+          "is_canon": false,
+          "support": 1,
+          "sources": ["wattpad:390229723"]
+        }
+      ]
+    },
+    {
+      "key": "thin_point",
+      "decision_point": "A decision point with no legal render",
+      "tropes": [],
+      "focal_entities": ["ghost"],
+      "support": 0,
+      "options": [
+        {
+          "label": "The only option that exists",
+          "is_canon": true,
+          "support": 0,
+          "sources": []
+        }
+      ]
+    }
+  ],
+  "branch_oracle_note": "Branch structure only: fan fiction supplies WHAT the options are. Option labels are synthesized from the premise taxonomy and no harvested prose is reproduced as story text (project_context.md 5.2).",
+  "usage_note": "Fixture corpus for CorpusBranchOracle unit tests. Not a real harvest."
+}

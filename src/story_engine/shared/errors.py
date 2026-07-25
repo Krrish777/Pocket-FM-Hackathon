@@ -108,6 +108,17 @@ class DocumentIngestionError(HarvestError):
     code = "document_ingestion_failed"
 
 
+class CorpusReadError(HarvestError):
+    """A previously-harvested corpus artifact is missing or malformed.
+
+    Raised rather than degraded to an empty result: a `CorpusBranchOracle` that swallowed a bad
+    read and returned `()` would be indistinguishable from a chapter fan fiction genuinely never
+    wrote about, which is exactly the ambiguity `project_context.md` OD-4 warns against.
+    """
+
+    code = "corpus_read_failed"
+
+
 # --- canon <-> vector ingest -------------------------------------------------------------------
 class IngestDriftError(StoryEngineError):
     """Canon and the vector index disagree: one or more facts have no vector entry.
