@@ -497,3 +497,37 @@
 - **Added `make test-e2e` and `make test-kb`** so the E2E layer and the Kernel suite can be run in isolation.
 - **`CLAUDE.md`/`AGENTS.md` still said "Problem statement: TODO"** three hours after the brief arrived, and
   carried no record of the two-track split. Both updated (kept in sync, as their own header requires).
+
+## 2026-07-25 (session 6): `project_context.md` lands and settles three of our open assumptions
+- **Source:** the parallel product session produced `project_context.md`, declared the single source of
+  truth. Product: a playable branching layer over the Dexter novels — pick one of five characters, play
+  forward through choices mined from fan-fiction, with every character knowing only what they actually
+  learned. Track: P1 Story Time Machine + Infinite Story Universe.
+- **OD-1 SETTLED → FORK** (their §11): *"tier structurally mislabels every deliberate divergence as an
+  error, which is fatal for this genre."* Same reasoning we recommended. **KB-05 is unblocked**, and
+  `conflicting_active_facts` is already fork-scoped, so their §5.5 distinction between *intentional
+  divergence* and *accidental contradiction* is enforced in code today with no change.
+- **Superseded in `PRD-KNOWLEDGE-BASE.md`** (their §12, recorded here so nothing builds from the stale
+  version): OD-2 "producer or player" → **player**; A-4 public-domain corpus → superseded by SD-5/SD-13
+  (Dexter novels; commercial IP accepted as a hackathon artifact, explicitly not revisited); OD-6
+  "bounded options or free prose" → **bounded**. Their §12 states the PRD's remaining architecture, data
+  model and knowledge-model sections stand.
+- ⚠️ **CORRECTION TO OUR OWN CALL — `knower_scope` optionality was reasoned in the wrong frame.**
+  We downgraded it from mandatory using evidence about continuity-*error frequency* (2 of ConStory's 19
+  subtypes are epistemic, in a ~3.5%-of-density category). That frame is right for a verifier and wrong
+  for this product: their SD-7 makes per-character epistemic state a **MUST, in the data model from the
+  start**, and their §8.1 closing demo beat is re-rendering a scene from another character's view. The
+  schema needs **no rework** — optional means *populatable*, and for this build we populate it for all
+  five cast members on every fact — but the emphasis inverts and the earlier entry should be read with
+  this correction attached.
+- ⚠️ **KNOWN SCHEMA GAP vs their §5.3.** They specify each fact records *who witnessed it, who was told
+  it, and who could reasonably infer it* — three channels. Our `knower_scope` is a single set, which
+  collapses them. Sufficient for M5 ("a character cannot act on unwitnessed facts"), because the filter
+  only answers *does X know this*. Insufficient if the demo needs to narrate *how* a character learned
+  something. **Recommendation:** ship the single set; add a channel field additively if needed. Flagged,
+  not silently absorbed.
+- **Their §4.4 confirms our architecture independently:** *"the epistemic guarantee comes from what is
+  absent from the assembled context, not from instructing a model to withhold. A fact that was never
+  placed in the prompt cannot leak."* That is precisely why `LoreGraph.from_facts` applies the guard at
+  construction rather than leaving it to callers, and why `WorkingMemory` assembles only from
+  `store.visible_to(...)`.

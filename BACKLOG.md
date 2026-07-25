@@ -77,6 +77,46 @@
   OpenAI key; single client wrapper logs model id/params/tokens/cost.
 - Set up the `prompts/` registry (first template `name/v1.jinja`).
 
+## 🔵 FUTURE — context-aware RAG over source documents (NOT this session)
+
+> Added 2026-07-25 at the maintainer's request. **Reference, not a dependency.** This session builds the
+> memory system only; document-RAG comes later.
+
+**Reference implementation:** [`patchy631/ai-engineering-hub/notebook-lm-clone`](https://github.com/patchy631/ai-engineering-hub/tree/main/notebook-lm-clone)
+— an open-source NotebookLM-style document-grounded assistant with citations.
+
+**What it actually is** (fetched and read 2026-07-25, not assumed): PyMuPDF for PDF/TXT/Markdown parsing ·
+AssemblyAI for audio with speaker diarization · Firecrawl for web · **Milvus** vector DB · **Zep temporal
+knowledge graphs** as the memory layer · Kokoro TTS · Streamlit UI · OpenAI LLM. Chunks are overlapping;
+retrieval is top-k semantic with metadata (page numbers, timestamps) carried through for citation. No
+reranking. `src/` splits into audio_processing, document_processing, embeddings, generation, memory,
+podcast, vector_database, web_scraping.
+
+**TAKE — the genuinely reusable part:**
+- **PyMuPDF page-accurate parsing.** This is the piece that matters for us: our `Provenance` requires
+  `chapter` + `char_span` + a verbatim fragment, and page-accurate extraction is exactly how a citation
+  survives back to the source. Directly serves the receipt (`project_context.md` §5.4).
+- **Citation metadata threaded through chunking into retrieval results.** Same discipline we need — a
+  retrieved chunk that cannot name where it came from cannot produce a receipt.
+- Its module split (`document_processing` / `embeddings` / `vector_database` / `generation`) is a sane
+  shape to mirror for an ingestion pipeline.
+
+**LEAVE — and the reasons are already documented, do not relitigate:**
+- **Its memory layer (Zep).** We analysed Zep/Graphiti in depth (`Knowledge-Base/03`, `/10`): excellent
+  bi-temporal substrate, but **no epistemic scope, no commitment lifecycle, no telling-time bound.** Our
+  per-character filtered views are the product's core mechanic and Zep cannot express them. We already
+  built the better-fitted layer.
+- **Milvus.** We are going to **Databricks Vector Search** — sponsor-aligned, and Delta Sync means the
+  index maintains itself off the same Delta table that already backs canon time-travel.
+- Streamlit/Kokoro/AssemblyAI/Firecrawl — out of scope; text-first, and audio is SHOULD-tier (S1).
+
+⚠️ **License is NOT stated in the repo.** Do not vendor code from it without checking — default copyright
+applies otherwise. The *architecture* is free to learn from; the source is not free to copy. (Same trap
+that ruled out SymbolicToM.)
+
+**When this becomes real:** after the memory system is complete and the ingestion pipeline needs to read
+actual novel PDFs. Blocked on nothing technical — it is a sequencing choice, not a dependency.
+
 ## Later
 - `evals/` harness (coherence / continuity / on-genre, LLM-as-judge) — non-blocking.
 - API + CLI delivery adapters (thin).
