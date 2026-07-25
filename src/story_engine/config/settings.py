@@ -57,7 +57,13 @@ class Settings(BaseSettings):
     openai_api_key: SecretStr | None = None
 
     # ---- Generation defaults ----
-    default_model: str = "claude-sonnet-4"
+    # `scripted` swaps the real adapter for the deterministic one — the offline stage fallback,
+    # so a demo cannot die to a timeout, a rate limit, or an unlucky sample.
+    llm_provider: Literal["openai", "scripted"] = "openai"
+    default_model: str = "gpt-4o"
+    intent_model: str = "gpt-4o-mini"
+    """Intent classification is a structured, continuity-critical call, not prose: a small model at
+    a low temperature is both cheaper and more reliable at it than the narrator model."""
     max_output_tokens: int = 2000
     temperature_prose: float = 0.8
     temperature_structured: float = 0.2
