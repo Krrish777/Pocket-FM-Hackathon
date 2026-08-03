@@ -173,9 +173,9 @@ Before doing anything else, ask the user these questions. Do NOT proceed until y
 
 **IMPORTANT: if there are registered scorers in the experiment then they must be used for evaluation.**
 
-2. **Select additional built-in scorers that apply to the agent** 
+2. **Select additional built-in scorers that apply to the agent**
 
-See `references/scorers.md` for the built-in scorers. Select any that are useful for assessing the agent's quality and that are not already registered. 
+See `references/scorers.md` for the built-in scorers. Select any that are useful for assessing the agent's quality and that are not already registered.
 
 3. **Create additional custom scorers as needed**
 
@@ -184,7 +184,7 @@ If needed, create additional scorers using the `make_judge()` API. See `referenc
 > ⚠️ **CRITICAL — Scorer Return Values:** Scorers MUST instruct the LLM judge to return `"yes"` or `"no"` (or booleans/numerics). Return values of `"pass"` or `"fail"` are **silently cast to `None`** by `_cast_assessment_value_to_float` and **excluded from `results.metrics`** with no error or warning — results simply disappear. See `references/scorers-constraints.md` Constraint 2 for the full list of safe vs. broken return values.
 
 4. **REQUIRED: Register new scorers before evaluation** using Python API:
-   
+
    ```python
    from mlflow.genai.judges import make_judge
    from mlflow.genai.scorers import BuiltinScorerName
