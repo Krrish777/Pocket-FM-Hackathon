@@ -133,4 +133,3 @@ Define how data should be in pure, canonical Python 3.9+; validate it with Pydan
 ## Pydantic People
 
 - [Pydantic People](https://pydantic.dev/docs/validation/latest/pydantic-people/pydantic_people/index.md)
-
