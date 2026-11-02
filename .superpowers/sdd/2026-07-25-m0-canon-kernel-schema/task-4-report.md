@@ -1,8 +1,8 @@
 # Task 4 Report: Entity, Scene, Commitment, Flag Models
 
-**Status:** DONE  
-**Commit:** d456b2e (worktree-knowledge-base branch)  
-**Date:** 2026-07-25  
+**Status:** DONE
+**Commit:** d456b2e (worktree-knowledge-base branch)
+**Date:** 2026-07-25
 **Test Count:** 29 passed (8 new tests added)
 
 ## Summary
@@ -159,7 +159,7 @@ git commit -m "Task 4: Add CanonEntity, Presence, Scene, Commitment, Flag models
      tests/unit/domain/test_canon_models.py
 ```
 
-**Commit SHA:** d456b2e  
+**Commit SHA:** d456b2e
 **Branch:** worktree-knowledge-base (as instructed — no push)
 
 ## Design Verification
@@ -236,5 +236,5 @@ Task 5 will import these models and integrate them into narrative processing log
 
 ---
 
-**Report Generated:** 2026-07-25  
+**Report Generated:** 2026-07-25
 **Verified by:** Full `make check` gate (ruff check, ruff format, mypy strict, pytest full suite)
