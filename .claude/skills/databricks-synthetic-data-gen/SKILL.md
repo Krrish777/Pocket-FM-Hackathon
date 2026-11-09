@@ -133,7 +133,7 @@ After generating data, use `get_volume_folder_details` to validate the output ma
 - Schema matches expected columns and types
 - Data distributions look reasonable (check column stats)
 
-## Use Databricks Connect Spark + Faker Pattern 
+## Use Databricks Connect Spark + Faker Pattern
 
 ```python
 from databricks.connect import DatabricksSession, DatabricksEnv

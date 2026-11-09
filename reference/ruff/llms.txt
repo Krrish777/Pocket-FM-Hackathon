@@ -52,4 +52,3 @@ of rendered HTML with JS/CSS.
 ## Reference
 
 - [FAQ](https://docs.astral.sh/ruff/faq/index.md)
-
